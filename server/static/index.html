@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Weather &amp; Climate Station</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --border: #334155;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --green: #34d399;
+      --amber: #fbbf24;
+      --red: #f87171;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 24px;
+      line-height: 1.5;
+    }
+    .container { max-width: 1100px; margin: 0 auto; }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    h1 { font-size: 1.5rem; font-weight: 700; }
+    .status-pill {
+      font-size: 0.85rem;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .advice {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--accent);
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin-bottom: 20px;
+      font-size: 0.95rem;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 14px;
+      margin-bottom: 22px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+    }
+    .card .label { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .card .value { font-size: 1.8rem; font-weight: 700; margin-top: 6px; color: var(--text); }
+    .card .sub { font-size: 0.82rem; color: var(--muted); margin-top: 4px; }
+    .charts {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 14px;
+    }
+    canvas { width: 100%; height: 180px; display: block; margin-top: 10px; }
+    code { background: #0b1220; padding: 2px 6px; border-radius: 4px; font-size: 0.85em; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Weather &amp; Climate Station</h1>
+      <div class="status-pill" id="lastUpdate">Waiting for data...</div>
+    </header>
+
+    <div class="advice" id="adviceBox">Connecting to backend...</div>
+
+    <div class="grid">
+      <div class="card">
+        <div class="label">Temperature</div>
+        <div class="value" id="tempVal">--</div>
+        <div class="sub">DHT22 (GPIO 4)</div>
+      </div>
+      <div class="card">
+        <div class="label">Humidity</div>
+        <div class="value" id="humVal">--</div>
+        <div class="sub">DHT22 (GPIO 4)</div>
+      </div>
+      <div class="card">
+        <div class="label">Light Intensity</div>
+        <div class="value" id="luxVal">--</div>
+        <div class="sub">BH1750 (I2C 0x23)</div>
+      </div>
+      <div class="card">
+        <div class="label">Rain Status</div>
+        <div class="value" id="rainVal">--</div>
+        <div class="sub" id="rainSub">Raindrop Sensor (GPIO 34)</div>
+      </div>
+      <div class="card">
+        <div class="label">18650 Battery</div>
+        <div class="value" id="batVal">--</div>
+        <div class="sub" id="batSub">Voltage Sensor (GPIO 35)</div>
+      </div>
+      <div class="card">
+        <div class="label">Soil Moisture (Linked)</div>
+        <div class="value" id="moistVal">--</div>
+        <div class="sub" id="moistSub">Ready for moisture-01</div>
+      </div>
+    </div>
+
+    <div class="charts">
+      <div class="card">
+        <div class="label">Temperature (°C) — Recent</div>
+        <canvas id="tempChart" width="480" height="180"></canvas>
+      </div>
+      <div class="card">
+        <div class="label">Light Intensity (Lux) — Recent</div>
+        <canvas id="luxChart" width="480" height="180"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function drawLineChart(canvasId, values, color) {
+      const canvas = document.getElementById(canvasId);
+      const ctx = canvas.getContext("2d");
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      if (!values || values.length < 2) {
+        ctx.fillStyle = "#94a3b8";
+        ctx.font = "13px system-ui";
+        ctx.fillText("Waiting for at least 2 readings...", 12, h / 2);
+        return;
+      }
+
+      const pad = 20;
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+      const range = max - min || 1;
+
+      ctx.strokeStyle = "#334155";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(pad, h - pad);
+      ctx.lineTo(w - pad, h - pad);
+      ctx.stroke();
+
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      values.forEach((v, idx) => {
+        const x = pad + (idx / (values.length - 1)) * (w - pad * 2);
+        const y = h - pad - ((v - min) / range) * (h - pad * 2);
+        if (idx === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "11px system-ui";
+      ctx.fillText(`Min: ${min.toFixed(1)}`, pad, 14);
+      ctx.fillText(`Max: ${max.toFixed(1)}`, w - 80, 14);
+    }
+
+    async function refresh() {
+      try {
+        const [latestRes, histRes] = await Promise.all([
+          fetch("/api/latest"),
+          fetch("/api/history?device_id=weather-01&limit=40")
+        ]);
+        const latest = await latestRes.json();
+        const hist = await histRes.json();
+
+        document.getElementById("adviceBox").textContent = latest.advice?.message || "";
+
+        const devices = latest.devices || {};
+        const weather = Object.values(devices).find(d => d.device_type === "weather");
+        const moisture = Object.values(devices).find(d => d.device_type === "moisture");
+
+        if (weather) {
+          document.getElementById("tempVal").textContent = weather.dht_valid ? `${weather.temp_c} °C` : "Err";
+          document.getElementById("humVal").textContent = weather.dht_valid ? `${weather.humidity} %` : "Err";
+
+          if (weather.lux !== undefined) {
+            document.getElementById("luxVal").textContent = `${weather.lux} lx`;
+          } else {
+            document.getElementById("luxVal").textContent = "--";
+          }
+
+          if (weather.rain_raw !== undefined) {
+            document.getElementById("rainVal").textContent = weather.is_raining ? "RAINING" : "DRY";
+            document.getElementById("rainSub").textContent = `Wetness: ${weather.rain_pct}% (raw ${weather.rain_raw})`;
+          } else {
+            document.getElementById("rainVal").textContent = "--";
+            document.getElementById("rainSub").textContent = "Not connected yet";
+          }
+
+          if (weather.battery_v !== undefined) {
+            document.getElementById("batVal").textContent = `${weather.battery_v} V`;
+            document.getElementById("batSub").textContent = `Charge: ~${weather.battery_pct}%`;
+          } else {
+            document.getElementById("batVal").textContent = "--";
+            document.getElementById("batSub").textContent = "USB powered (not connected)";
+          }
+
+          document.getElementById("lastUpdate").textContent =
+            `Last update: ${new Date(weather.received_at).toLocaleTimeString()}`;
+        }
+
+        if (moisture) {
+          document.getElementById("moistVal").textContent = `${moisture.soil_moisture_pct ?? "--"} %`;
+          document.getElementById("moistSub").textContent = `Node: ${moisture.device_id}`;
+        }
+
+        const items = hist.items || [];
+        drawLineChart("tempChart", items.map(i => Number(i.temp_c || 0)), "#38bdf8");
+        drawLineChart("luxChart", items.map(i => Number(i.lux || 0)), "#fbbf24");
+      } catch (err) {
+        document.getElementById("adviceBox").textContent = "Backend unreachable: " + err.message;
+      }
+    }
+
+    refresh();
+    setInterval(refresh, 3000);
+  </script>
+</body>
+</html>

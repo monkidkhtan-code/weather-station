@@ -33,7 +33,7 @@
 // ===================== USER CONFIGURATION =====================
 // Network 1: Farm Wi-Fi
 const char* FARM_SSID       = "KHAGRIFARM_2.4";
-const char* FARM_PASSWORD   = "123123farm";
+const char* FARM_PASSWORD   = "YOUR_FARM_WIFI_PASSWORD";
 
 // Network 2: Home Wi-Fi
 const char* HOME_SSID       = "YOUR_HOME_2.4GHZ_WIFI";

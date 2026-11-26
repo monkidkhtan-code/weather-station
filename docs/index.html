@@ -1,0 +1,1825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KH ClimateSense — Farm Microclimate &amp; Weather Station</title>
+  <style>
+    :root {
+      --bg: #11261b;
+      --header: linear-gradient(90deg, #1d4d2c 0%, #376d26 55%, #23532d 100%);
+      --card: #142f23;
+      --well: #0f241a;
+      --border: #2a5943;
+      --border-soft: #204634;
+      --text: #f0fdf4;
+      --muted: #9ec0ae;
+      --emerald: #22c55e;
+      --emerald-dim: #166534;
+      --amber: #eab308;
+      --orange: #f97316;
+      --sky: #38bdf8;
+      --red: #ef4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background:
+        linear-gradient(135deg, rgba(10, 34, 22, 0.84), rgba(14, 46, 30, 0.88)),
+        url("weather-bg.jpg") center / cover fixed no-repeat,
+        var(--bg);
+      min-height: 100vh;
+      color: var(--text);
+      line-height: 1.45;
+    }
+    /* Top Header */
+    .topbar {
+      background: var(--header);
+      border-bottom: 1px solid #3c7838;
+      padding: 12px 22px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.25);
+    }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-title-row { display: flex; align-items: center; gap: 8px; }
+    .brand h1 { font-size: 1.15rem; font-weight: 700; letter-spacing: -0.01em; }
+    .ver-pill {
+      font-size: 0.72rem;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #143325;
+      border: 1px solid #24523c;
+      color: #86efac;
+      font-weight: 600;
+    }
+    .brand-sub { font-size: 0.76rem; color: var(--muted); }
+    .top-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .btn-sm {
+      padding: 7px 14px;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--text);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-sm.primary {
+      background: #16a34a;
+      border-color: #22c55e;
+      color: #ffffff;
+    }
+    .btn-sm:hover { filter: brightness(1.1); }
+
+    .container { max-width: 1280px; margin: 0 auto; padding: 16px 20px 28px; }
+
+    .subbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 12px;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+    .station-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+    .tab-pill {
+      padding: 6px 12px;
+      border-radius: 8px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .tab-pill.active {
+      background: #112d20;
+      border-color: #22c55e;
+    }
+    .tab-pill span { color: #34d399; margin-left: 6px; }
+
+    /* Advisory Banner */
+    .advice-banner {
+      background: #132214;
+      border: 1px solid #3f5221;
+      border-radius: 12px;
+      padding: 10px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .advice-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .status-badge {
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: #2b2210;
+      border: 1px solid #a16207;
+      color: #fde047;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .status-badge.ok {
+      background: #0d2b1d;
+      border-color: #16a34a;
+      color: #86efac;
+    }
+    .advice-text { font-size: 0.84rem; color: #e2e8f0; }
+    .mini-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+    .chip {
+      background: var(--well);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 5px 12px;
+      text-align: center;
+      min-width: 96px;
+    }
+    .chip-top { font-size: 0.7rem; color: var(--muted); }
+    .chip-val { font-size: 0.9rem; font-weight: 700; color: var(--text); }
+
+    /* Main 2-column layout matching KH CocoScale */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1.05fr 1.35fr;
+      gap: 16px;
+    }
+    @media (max-width: 900px) {
+      .main-grid { grid-template-columns: 1fr; }
+    }
+    .card {
+      background: rgba(20, 47, 35, 0.88);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+    }
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .card-title { font-size: 1rem; font-weight: 700; }
+    .pill-tag {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: #143325;
+      border: 1px solid #22c55e;
+      color: #86efac;
+      text-transform: uppercase;
+    }
+
+    /* Hero Metrics */
+    .hero-row {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .metric-box {
+      background: var(--well);
+      border: 1px solid var(--border-soft);
+      border-radius: 10px;
+      padding: 14px 16px;
+      position: relative;
+      overflow: hidden;
+    }
+    .metric-watermark {
+      position: absolute;
+      right: -8px;
+      bottom: -10px;
+      opacity: 0.13;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .metric-label, .metric-val, .metric-sub { position: relative; z-index: 1; }
+    .metric-label {
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .metric-val { font-size: 3.1rem; font-weight: 800; margin-top: 4px; line-height: 1.05; }
+    .metric-sub { font-size: 0.76rem; color: var(--muted); margin-top: 4px; }
+
+    .sub-metrics {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    @media (max-width: 520px) {
+      .sub-metrics { grid-template-columns: 1fr; }
+    }
+
+    /* ESP32 Status Strip */
+    .esp-strip {
+      background: var(--well);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-bottom: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      font-size: 0.8rem;
+    }
+
+    /* Battery & Solar Progress Panel */
+    .bat-panel {
+      background: var(--well);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 14px;
+    }
+    .bat-panel-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: 0.8rem;
+    }
+    .bat-status-pill {
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 2px 10px;
+      border-radius: 999px;
+      background: #0d2b1d;
+      border: 1px solid #16a34a;
+      color: #86efac;
+    }
+    .bat-status-pill.charging {
+      background: #102b38;
+      border-color: #38bdf8;
+      color: #7dd3fc;
+    }
+    .bat-status-pill.low {
+      background: #331818;
+      border-color: #ef4444;
+      color: #fca5a5;
+    }
+    .bat-bar-track {
+      width: 100%;
+      height: 12px;
+      background: #07130e;
+      border: 1px solid var(--border-soft);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .bat-bar-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #16a34a, #4ade80);
+      transition: width 0.5s ease;
+    }
+    .bat-bar-fill.charging {
+      background: linear-gradient(90deg, #0284c7, #38bdf8, #4ade80);
+      animation: chargingPulse 1.6s ease-in-out infinite;
+    }
+    .bat-bar-fill.medium { background: linear-gradient(90deg, #ca8a04, #facc15); }
+    .bat-bar-fill.low { background: linear-gradient(90deg, #dc2626, #f87171); }
+    @keyframes chargingPulse {
+      0%, 100% { filter: brightness(1); }
+      50% { filter: brightness(1.3); }
+    }
+    .bat-panel-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 6px;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    .esp-badges { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .online-dot {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 2px 9px;
+      border-radius: 999px;
+      background: #0d2b1d;
+      border: 1px solid #16a34a;
+      color: #86efac;
+      font-weight: 600;
+      font-size: 0.75rem;
+    }
+    .online-dot::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #22c55e;
+    }
+
+    /* Control Panel */
+    .control-box {
+      background: var(--well);
+      border: 1px solid var(--border-soft);
+      border-radius: 10px;
+      padding: 12px 14px;
+    }
+    .control-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border-soft);
+    }
+    .control-row:last-of-type { border-bottom: none; }
+    .ctrl-name { font-size: 0.85rem; font-weight: 600; }
+    .ctrl-desc { font-size: 0.74rem; color: var(--muted); }
+    select {
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 0.84rem;
+    }
+    .toggle {
+      width: 42px;
+      height: 22px;
+      accent-color: var(--emerald);
+      cursor: pointer;
+    }
+    .save-btn {
+      width: 100%;
+      margin-top: 10px;
+      padding: 10px;
+      border: 1px solid #22c55e;
+      border-radius: 8px;
+      background: #14532d;
+      color: #ecfdf5;
+      font-weight: 700;
+      font-size: 0.88rem;
+      cursor: pointer;
+    }
+    .save-btn:hover { background: #166534; }
+    .save-msg { font-size: 0.78rem; color: #86efac; margin-top: 6px; min-height: 18px; }
+
+    /* Chart Card */
+    .chart-controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .series-pills { display: flex; gap: 6px; flex-wrap: wrap; }
+    .series-btn {
+      padding: 4px 10px;
+      border-radius: 7px;
+      border: 1px solid var(--border);
+      background: var(--well);
+      color: var(--muted);
+      font-size: 0.76rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .series-btn.active { color: var(--text); border-color: #22c55e; background: #112d20; }
+    canvas#combinedChart {
+      width: 100%;
+      height: 310px;
+      display: block;
+      background: var(--well);
+      border: 1px solid var(--border-soft);
+      border-radius: 10px;
+    }
+
+    /* CocoScale Linked Strip */
+    .coco-strip {
+      margin-top: 14px;
+      background: var(--well);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+    }
+    .coco-items { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+    .coco-chip {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 0.78rem;
+    }
+
+    /* Footer matching KH CocoScale */
+    .site-footer {
+      border-top: 1px solid var(--border);
+      background: #0e2319;
+      padding: 20px 22px;
+      margin-top: 24px;
+    }
+    .footer-inner { max-width: 1280px; margin: 0 auto; }
+    .footer-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--border-soft);
+    }
+    .footer-row.last {
+      border-bottom: none;
+      padding-top: 14px;
+      padding-bottom: 0;
+      font-size: 0.76rem;
+      color: var(--muted);
+    }
+    .footer-mid {
+      padding: 14px 0;
+      border-bottom: 1px solid var(--border-soft);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .fw-pill {
+      font-size: 0.72rem;
+      padding: 2px 9px;
+      border-radius: 999px;
+      background: #0c2433;
+      border: 1px solid #0284c7;
+      color: #7dd3fc;
+      font-weight: 600;
+    }
+    .live-pill {
+      font-size: 0.72rem;
+      padding: 2px 9px;
+      border-radius: 999px;
+      background: #0d2b1d;
+      border: 1px solid #16a34a;
+      color: #86efac;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .live-pill::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #22c55e;
+    }
+
+    /* ESP32 Control Modal matching KH CocoScale */
+    .esp-summary-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .esp-summary-btn {
+      background: var(--well);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      color: var(--text);
+      font-size: 0.84rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .esp-summary-btn:hover { border-color: #22c55e; }
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(3, 10, 7, 0.82);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      z-index: 1000;
+      overflow-y: auto;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal-card {
+      background: #122b20;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      width: 100%;
+      max-width: 660px;
+      max-height: 92vh;
+      overflow-y: auto;
+      padding: 20px;
+    }
+    .modal-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .modal-close {
+      background: #132a1f;
+      border: 1px solid var(--border);
+      color: var(--text);
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    .modal-status-box {
+      background: #0d2318;
+      border: 1px solid #1e4631;
+      border-radius: 10px;
+      padding: 10px 14px;
+      margin-bottom: 12px;
+    }
+    .modal-conn-box {
+      background: var(--well);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 16px;
+    }
+    .modal-sec-title {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: #38bdf8;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin: 14px 0 8px;
+    }
+    .gap-pills {
+      display: flex;
+      gap: 7px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .gap-btn {
+      padding: 6px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #10241b;
+      color: var(--text);
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .gap-btn.active {
+      border-color: #2dd4bf;
+      background: #113329;
+      color: #99f6e4;
+    }
+    .custom-num {
+      width: 68px;
+      background: #07130e;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 8px;
+      font-size: 0.84rem;
+    }
+    .option-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+    @media (max-width: 560px) { .option-grid { grid-template-columns: 1fr; } }
+    .opt-card {
+      background: var(--well);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 11px 12px;
+      cursor: pointer;
+      position: relative;
+      text-align: left;
+    }
+    .opt-card.active {
+      border-color: #2dd4bf;
+      background: #0d261e;
+    }
+    .opt-card .opt-title { font-size: 0.86rem; font-weight: 700; color: var(--text); padding-right: 18px; }
+    .opt-card .opt-desc { font-size: 0.74rem; color: var(--muted); margin-top: 4px; line-height: 1.4; }
+    .opt-dot {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      border: 1px solid var(--muted);
+    }
+    .opt-card.active .opt-dot {
+      background: #2dd4bf;
+      border-color: #2dd4bf;
+    }
+    .est-box {
+      margin-top: 12px;
+      background: var(--well);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <!-- KH ClimateSense Custom SVG Logo -->
+      <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="KH ClimateSense Logo">
+        <rect x="1" y="1" width="38" height="38" rx="9" fill="#10291e" stroke="#22c55e" stroke-width="1.5"/>
+        <circle cx="28" cy="11" r="4.5" fill="#eab308"/>
+        <path d="M12 24.5C9.8 24.5 8 22.8 8 20.7C8 18.8 9.4 17.2 11.2 17C11.9 14.4 14.3 12.5 17.1 12.5C20.5 12.5 23.2 15.1 23.2 18.4C23.2 18.6 23.2 18.8 23.1 19C24.8 19.3 26 20.7 26 22.4C26 24.3 24.4 25.8 22.4 25.8H12V24.5Z" fill="#ecfdf5" opacity="0.92"/>
+        <text x="10.5" y="34.5" fill="#4ade80" font-family="Inter, Arial, sans-serif" font-size="9.5" font-weight="800" letter-spacing="0.6">KH</text>
+      </svg>
+      <div>
+        <div class="brand-title-row">
+          <h1>KH ClimateSense</h1>
+          <span class="ver-pill">v1.0.0</span>
+        </div>
+        <div class="brand-sub">Farm Microclimate &amp; Weather Station</div>
+      </div>
+    </div>
+
+    <div class="top-actions">
+      <button class="btn-sm primary" id="syncBtn">↻ Sync</button>
+      <a class="btn-sm" href="https://docs.google.com/spreadsheets/d/1NsZaqyzeOn1NmdCko6KkYehmWpQKlEhT7g_yaHwOmfs/edit" target="_blank" rel="noopener">Sheet Log ↗</a>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="subbar" style="justify-content:flex-end;">
+      <span id="lastChecked">Last checked: --</span>
+    </div>
+
+    <div class="main-grid">
+      <!-- Left Column: Station Telemetry & ESP32 Control -->
+      <section class="card">
+        <div class="card-head">
+          <div class="card-title">Station 1 — Weather Node (weather-01)</div>
+          <span class="pill-tag" id="rainTag">DRY</span>
+        </div>
+
+        <div class="hero-row">
+          <div class="metric-box">
+            <span class="metric-watermark">
+              <svg width="86" height="86" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg>
+            </span>
+            <div class="metric-label">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg>
+              Temperature
+            </div>
+            <div class="metric-val" id="tempVal" style="color:#f97316;">--</div>
+            <div class="metric-sub">DHT22 · GPIO 4</div>
+          </div>
+          <div class="metric-box">
+            <span class="metric-watermark">
+              <svg width="86" height="86" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+            </span>
+            <div class="metric-label">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+              Humidity
+            </div>
+            <div class="metric-val" id="humVal" style="color:#34d399;">--</div>
+            <div class="metric-sub">DHT22 · GPIO 4</div>
+          </div>
+        </div>
+
+        <div class="sub-metrics">
+          <div class="metric-box">
+            <span class="metric-watermark">
+              <svg width="68" height="68" viewBox="0 0 24 24" fill="none" stroke="#eab308" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+            </span>
+            <div class="metric-label">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#eab308" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+              Light
+            </div>
+            <div class="metric-val" id="luxVal" style="font-size:2.1rem; color:#eab308;">--</div>
+            <div class="metric-sub">BH1750 (I2C)</div>
+          </div>
+          <div class="metric-box">
+            <span class="metric-watermark">
+              <svg width="68" height="68" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M16 14v6M8 14v6M12 16v6"/></svg>
+            </span>
+            <div class="metric-label">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M16 14v6M8 14v6M12 16v6"/></svg>
+              Rain
+            </div>
+            <div class="metric-val" id="rainVal" style="font-size:2.1rem; color:#38bdf8;">--</div>
+            <div class="metric-sub" id="rainSub">Not connected</div>
+          </div>
+        </div>
+
+        <div class="bat-panel">
+          <div class="bat-panel-head">
+            <span style="font-weight:700; color:var(--text);">🔋 Battery &amp; Solar Progress</span>
+            <span class="bat-status-pill" id="batStatusPill">--</span>
+          </div>
+          <div style="display:flex; align-items:baseline; gap:10px; margin-bottom:8px;">
+            <span id="batVal" style="font-size:1.7rem; font-weight:800; color:#f0fdf4;">--</span>
+            <span id="batSub" style="font-size:0.8rem; color:var(--muted);">USB power</span>
+          </div>
+          <div class="bat-bar-track">
+            <div class="bat-bar-fill" id="batBarFill"></div>
+          </div>
+          <div class="bat-panel-meta">
+            <span id="batPanelLeft">--% remaining</span>
+            <span id="batTrendText">Trend: --</span>
+          </div>
+          <div style="margin-top:6px; font-size:0.78rem; color:#86efac; font-weight:600;" id="batProjection">
+            ⏳ Est. Runtime Left: --
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px; margin-top:10px;">
+            <div class="series-pills" id="batRangePills">
+              <button class="series-btn" data-hours="6">6H</button>
+              <button class="series-btn active" data-hours="24">24H</button>
+              <button class="series-btn" data-hours="72">3D</button>
+              <button class="series-btn" data-hours="168">7D</button>
+              <button class="series-btn" data-hours="0">ALL</button>
+            </div>
+            <div class="series-pills" id="batPanControl">
+              <button class="series-btn" id="batPanPrev" title="Previous window">◀</button>
+              <button class="series-btn active" id="batPanLive" title="Jump to Live">Live</button>
+              <button class="series-btn" id="batPanNext" title="Next window">▶</button>
+            </div>
+          </div>
+          <div style="position:relative; margin-top:8px;">
+            <canvas id="batteryChart" width="520" height="125" style="width:100%; height:125px; display:block; background:#07130e; border:1px solid var(--border-soft); border-radius:8px;"></canvas>
+            <div id="batTooltip" style="display:none; position:absolute; pointer-events:none; background:#0d2318; border:1px solid #4ade80; border-radius:8px; padding:6px 9px; font-size:0.75rem; color:#f0fdf4; box-shadow:0 4px 12px rgba(0,0,0,0.4);"></div>
+          </div>
+        </div>
+
+        <div class="esp-strip">
+          <div class="esp-badges">
+            <span>⚡ ESP32</span>
+            <span class="online-dot" id="onlineBadge">Online</span>
+            <span class="bat-status-pill" id="espPowerState">--</span>
+          </div>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <span id="nextCountdown" style="color:#86efac; font-weight:600;">⏳ Next: --</span>
+            <span id="intervalBadge" style="color:var(--muted);">Every 10s</span>
+          </div>
+        </div>
+
+        <div class="esp-summary-row">
+          <button class="esp-summary-btn" id="quickLcdBtn" title="Click to toggle LCD Backlight ON/OFF">
+            <span>💡 LCD: <strong id="lcdSummary">ON</strong></span>
+          </button>
+          <button class="esp-summary-btn" id="openControlBtn">⚙ Control ESP32</button>
+        </div>
+      </section>
+
+      <!-- Right Column: Combined 3-in-1 Climate Chart + CocoScale Link -->
+      <section class="card">
+        <div class="card-head">
+          <div class="card-title">Climate Curve — Temp + Humidity + Light</div>
+        </div>
+
+        <div class="chart-controls">
+          <div class="series-pills">
+            <button class="series-btn active" data-series="temp">● Temp (°C)</button>
+            <button class="series-btn active" data-series="hum">● Humidity (%)</button>
+            <button class="series-btn active" data-series="lux">● Light (Lux)</button>
+          </div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+            <div class="series-pills" id="rangePills">
+              <button class="series-btn" data-hours="6">6H</button>
+              <button class="series-btn active" data-hours="24">24H</button>
+              <button class="series-btn" data-hours="72">3D</button>
+              <button class="series-btn" data-hours="168">7D</button>
+              <button class="series-btn" data-hours="0">ALL</button>
+            </div>
+            <div class="series-pills" id="panControl">
+              <button class="series-btn" id="panPrev" title="Previous window">◀</button>
+              <button class="series-btn active" id="panLive" title="Jump to Live">Live</button>
+              <button class="series-btn" id="panNext" title="Next window">▶</button>
+            </div>
+          </div>
+        </div>
+
+        <div style="position:relative;">
+          <canvas id="combinedChart" width="760" height="310"></canvas>
+          <div id="chartTooltip" style="display:none; position:absolute; pointer-events:none; background:#0d2318; border:1px solid #22c55e; border-radius:8px; padding:8px 10px; font-size:0.76rem; color:#f0fdf4; box-shadow:0 4px 12px rgba(0,0,0,0.4);"></div>
+        </div>
+
+        <div class="coco-strip">
+          <div class="metric-label">Linked KH CocoScale Moisture Nodes</div>
+          <div class="coco-items" id="cocoList">
+            <span style="font-size:0.8rem; color:var(--muted);">Loading cocoscale_devices...</span>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div class="footer-row">
+        <div>
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <strong style="font-size:0.95rem;">KH ClimateSense</strong>
+            <span class="fw-pill">App v1.0.0 · ESP32 FW v1.0</span>
+            <span class="live-pill">LIVE FIREBASE</span>
+            <span style="font-size:0.76rem; color:var(--muted);">Updated: Nov 2026</span>
+          </div>
+          <div style="font-size:0.78rem; color:var(--muted); margin-top:4px;">
+            Farm Microclimate &amp; Weather Station · DHT22 + BH1750 + Rain + 18650 Battery
+          </div>
+        </div>
+        <div>
+          <button class="btn-sm" id="esp32Btn">⚙ ESP32 &amp; LCD</button>
+        </div>
+      </div>
+
+      <div class="footer-mid">
+        <div>
+          <div style="font-size:0.74rem; font-weight:700; color:#4ade80; letter-spacing:0.05em;">LATEST UPDATE (V1.0.0 · FIRMWARE V1.0)</div>
+          <div style="font-size:0.8rem; color:#cbd5e1; margin-top:5px;">
+            <span class="ver-pill" style="margin-right:6px;">v1.0.0</span>
+            Firebase RTDB live telemetry, Google Sheets 5-min history logger, remote interval &amp; LCD backlight control, and 3-in-1 climate curve.
+          </div>
+          <div id="historyBox" style="display:none; font-size:0.76rem; color:var(--muted); margin-top:6px;">
+            • v1.0.0 (Nov 2026): Initial release with KH CocoScale theme, live countdown, and wireless ESP32 config.
+          </div>
+        </div>
+        <div>
+          <button class="btn-sm" id="historyBtn">↺ Update History</button>
+        </div>
+      </div>
+
+      <div class="footer-row last">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <strong style="color:#4ade80; font-size:0.9rem;">KH</strong>
+          <span>Developed &amp; Engineered by <strong>KH Agrifarm</strong> · Precision Smart Farming Division</span>
+        </div>
+        <div>© 2026 <strong>KH Agrifarm</strong>. All rights reserved. Proprietary IoT hardware &amp; telemetry system.</div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ESP32 Hardware & LCD Modal (KH CocoScale Style) -->
+  <div class="modal-backdrop" id="espModal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <h2 style="font-size:1.1rem; font-weight:700;">ESP32 Hardware &amp; LCD — STATION 1</h2>
+          <div style="font-size:0.78rem; color:var(--muted);">Remotely adjust reading gap, battery sleep &amp; 16×2 LCD backlight without re-flashing.</div>
+        </div>
+        <button class="modal-close" id="closeModalBtn">✕</button>
+      </div>
+
+      <div class="modal-status-box">
+        <div style="font-size:0.84rem; font-weight:700; color:#ecfdf5;">● <span id="activeSummaryText">Active on ESP32 (10s · Always Awake · LCD: on)</span></div>
+        <div style="font-size:0.74rem; color:var(--muted); margin-top:3px;" id="modalMetaText">Last ESP32 check-in: -- · Wi-Fi -- dBm · Firmware v1.1</div>
+      </div>
+
+      <div class="modal-conn-box">
+        <div class="metric-label">ESP32 Connectivity &amp; Power</div>
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-top:6px;">
+          <div>
+            <div style="font-size:1.1rem; font-weight:700; color:#34d399;" id="wifiQualityText">Signal: --</div>
+            <div style="font-size:0.76rem; color:var(--muted); margin-top:2px;" id="wifiDetailText">SSID: -- · LAN IP: --</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:1rem; font-weight:700; color:#86efac;" id="modalBatText">🔋 USB Power</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-sec-title">1. Climate Reading &amp; Upload Gap</div>
+      <div class="gap-pills" id="gapPills">
+        <button class="gap-btn" data-sec="10">10s</button>
+        <button class="gap-btn" data-sec="60">1 min</button>
+        <button class="gap-btn" data-sec="300">5 min</button>
+        <button class="gap-btn" data-sec="600">10 min</button>
+        <button class="gap-btn" data-sec="900">15 min</button>
+        <button class="gap-btn" data-sec="1800">30 min</button>
+        <button class="gap-btn" data-sec="3600">60 min</button>
+        <span style="font-size:0.78rem; color:var(--muted); margin-left:4px;">Custom:</span>
+        <input type="number" class="custom-num" id="customSecInput" min="5" value="10" />
+        <span style="font-size:0.78rem; color:var(--muted);">sec</span>
+      </div>
+
+      <div class="control-box" style="margin-bottom:10px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+          <div>
+            <div style="font-size:0.84rem; font-weight:700; color:#fde047;">🌙 Night Eco Mode (7:00 PM – 6:00 AM)</div>
+            <div style="font-size:0.74rem; color:var(--muted);">Automatically extends reading interval overnight when solar is off.</div>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <input type="checkbox" id="nightEcoToggle" style="width:18px; height:18px; accent-color:#22c55e;" />
+            <span style="font-size:0.8rem; font-weight:600;">Enable</span>
+            <select id="nightEcoSec">
+              <option value="900">15 min</option>
+              <option value="1800" selected>30 min</option>
+              <option value="3600">60 min</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding-top:10px; border-top:1px solid var(--border-soft);">
+          <span style="font-size:0.8rem; color:var(--muted);">Google Sheet Log Interval</span>
+          <select id="sheetInterval">
+            <option value="60">1 min</option>
+            <option value="300" selected>5 min</option>
+            <option value="900">15 min</option>
+            <option value="1800">30 min</option>
+            <option value="3600">60 min</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="modal-sec-title">2. 16×2 LCD Screen &amp; Backlight</div>
+      <div class="option-grid" id="lcdModeGrid">
+        <button class="opt-card active" data-lcd="on">
+          <span class="opt-dot"></span>
+          <div class="opt-title">Backlight ON</div>
+          <div class="opt-desc">Screen text + bright LED backlight stay ON while awake (~22 mA).</div>
+        </button>
+        <button class="opt-card" data-lcd="text_only">
+          <span class="opt-dot"></span>
+          <div class="opt-title">Backlight OFF (Text Only)</div>
+          <div class="opt-desc">Switches LED glow OFF immediately — saves ~22 mA &amp; night bug-safe.</div>
+        </button>
+        <button class="opt-card" data-lcd="flash_sync">
+          <span class="opt-dot"></span>
+          <div class="opt-title">Flash 8s on Sync</div>
+          <div class="opt-desc">Backlight stays OFF, lighting up briefly during each cloud upload.</div>
+        </button>
+        <button class="opt-card" data-lcd="off">
+          <span class="opt-dot"></span>
+          <div class="opt-title">Screen Fully OFF</div>
+          <div class="opt-desc">Completely dark headless mode. Pressing ESP32 BOOT wakes LCD for 30s.</div>
+        </button>
+      </div>
+
+      <div class="modal-sec-title">3. ESP32 Power &amp; Sleep Mode</div>
+      <div class="option-grid" id="powerModeGrid">
+        <button class="opt-card active" data-power="awake">
+          <span class="opt-dot"></span>
+          <div class="opt-title">Always Awake (Live LCD)</div>
+          <div class="opt-desc">Keeps sensors &amp; LCD active continuously (~75–98 mA). Best on USB/Solar.</div>
+        </button>
+        <button class="opt-card" data-power="smart_saver">
+          <span class="opt-dot"></span>
+          <div class="opt-title">Smart Saver (80 MHz · 3× Battery)</div>
+          <div class="opt-desc">80 MHz CPU + Wi-Fi modem sleep (~25 mA). Stays responsive to App!</div>
+        </button>
+        <button class="opt-card" data-power="deep_sleep">
+          <span class="opt-dot"></span>
+          <div class="opt-title">Ultra Deep Sleep (Max Battery)</div>
+          <div class="opt-desc">Shuts down Wi-Fi &amp; CPU between reads (~9 mA avg). Wakes on timer/BOOT.</div>
+        </button>
+      </div>
+
+      <div class="est-box">
+        <div>
+          <div class="metric-label">Estimated Battery Consumption</div>
+          <div style="font-size:1.15rem; font-weight:800; color:#ecfdf5; margin-top:2px;" id="estBatteryText">~1.5 days (85.0 mA avg)</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span style="font-size:0.78rem; color:var(--muted);">Battery:</span>
+          <input type="number" class="custom-num" id="batteryMahInput" value="3000" min="500" step="500" />
+          <span style="font-size:0.78rem; color:var(--muted);">mAh</span>
+        </div>
+      </div>
+
+      <button class="save-btn" id="saveBtn">Save Settings to ESP32</button>
+      <div class="save-msg" id="saveMsg"></div>
+    </div>
+  </div>
+
+  <script>
+    const RTDB_BASE = "https://kh-agrifarm-default-rtdb.asia-southeast1.firebasedatabase.app";
+    const HISTORY_KEY = "kh_climatesense_history_v1";
+    const visible = { temp: true, hum: true, lux: true };
+    let configLoaded = false;
+    let lastUpdatedMs = 0;
+    let currentReadIntervalSec = 10;
+    let history = [];
+    try { history = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"); } catch (_) {}
+
+    function updateCountdown() {
+      const el = document.getElementById("nextCountdown");
+      if (!lastUpdatedMs) {
+        el.textContent = "⏳ Next: --";
+        return;
+      }
+      const remSec = Math.max(0, Math.ceil((lastUpdatedMs + currentReadIntervalSec * 1000 - Date.now()) / 1000));
+      if (remSec === 0) {
+        el.textContent = "⏳ Next: due";
+      } else if (remSec >= 60) {
+        const m = Math.floor(remSec / 60);
+        const s = remSec % 60;
+        el.textContent = `⏳ Next: ${m}m ${s}s`;
+      } else {
+        el.textContent = `⏳ Next: ${remSec}s`;
+      }
+    }
+
+    let selectedHours = 24;
+    let panOffset = 0;
+    let hoverIdx = -1;
+
+    function updatePanUI() {
+      const liveBtn = document.getElementById("panLive");
+      if (panOffset === 0 || !selectedHours) {
+        liveBtn.textContent = "Live";
+        liveBtn.classList.add("active");
+      } else {
+        const hrsBack = panOffset * selectedHours;
+        liveBtn.textContent = hrsBack >= 24 ? `-${Math.round(hrsBack / 24)}d` : `-${hrsBack}h`;
+        liveBtn.classList.remove("active");
+      }
+      document.getElementById("panNext").disabled = (panOffset === 0 || !selectedHours);
+    }
+
+    document.querySelectorAll(".series-btn[data-series]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const key = btn.dataset.series;
+        visible[key] = !visible[key];
+        btn.classList.toggle("active", visible[key]);
+        drawCombinedChart();
+      });
+    });
+
+    document.querySelectorAll("#rangePills .series-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        selectedHours = Number(btn.dataset.hours);
+        panOffset = 0;
+        document.querySelectorAll("#rangePills .series-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        hoverIdx = -1;
+        updatePanUI();
+        drawCombinedChart();
+      });
+    });
+
+    document.getElementById("panPrev").addEventListener("click", () => {
+      if (!selectedHours) return;
+      panOffset += 1;
+      hoverIdx = -1;
+      updatePanUI();
+      drawCombinedChart();
+    });
+    document.getElementById("panLive").addEventListener("click", () => {
+      panOffset = 0;
+      hoverIdx = -1;
+      updatePanUI();
+      drawCombinedChart();
+    });
+    document.getElementById("panNext").addEventListener("click", () => {
+      if (panOffset > 0) panOffset -= 1;
+      hoverIdx = -1;
+      updatePanUI();
+      drawCombinedChart();
+    });
+
+    let batSelectedHours = 24;
+    let batPanOffset = 0;
+
+    function updateBatPanUI() {
+      const liveBtn = document.getElementById("batPanLive");
+      if (batPanOffset === 0 || !batSelectedHours) {
+        liveBtn.textContent = "Live";
+        liveBtn.classList.add("active");
+      } else {
+        const hrsBack = batPanOffset * batSelectedHours;
+        liveBtn.textContent = hrsBack >= 24 ? `-${Math.round(hrsBack / 24)}d` : `-${hrsBack}h`;
+        liveBtn.classList.remove("active");
+      }
+      document.getElementById("batPanNext").disabled = (batPanOffset === 0 || !batSelectedHours);
+    }
+
+    document.querySelectorAll("#batRangePills .series-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        batSelectedHours = Number(btn.dataset.hours);
+        batPanOffset = 0;
+        document.querySelectorAll("#batRangePills .series-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        batHoverIdx = -1;
+        updateBatPanUI();
+        drawBatteryChart();
+      });
+    });
+
+    document.getElementById("batPanPrev").addEventListener("click", () => {
+      if (!batSelectedHours) return;
+      batPanOffset += 1;
+      batHoverIdx = -1;
+      updateBatPanUI();
+      drawBatteryChart();
+    });
+    document.getElementById("batPanLive").addEventListener("click", () => {
+      batPanOffset = 0;
+      batHoverIdx = -1;
+      updateBatPanUI();
+      drawBatteryChart();
+    });
+    document.getElementById("batPanNext").addEventListener("click", () => {
+      if (batPanOffset > 0) batPanOffset -= 1;
+      batHoverIdx = -1;
+      updateBatPanUI();
+      drawBatteryChart();
+    });
+
+    function filterHistoryByWindow(hours, pan) {
+      if (!hours || history.length === 0) return history;
+      const winMs = hours * 3600 * 1000;
+      const endMs = Date.now() - pan * winMs;
+      const startMs = endMs - winMs;
+      const filtered = history.filter(p => Number(p.ts) >= startMs && Number(p.ts) <= endMs);
+      return (pan === 0 && filtered.length < 2) ? history : filtered;
+    }
+
+    function getFilteredHistory() {
+      return filterHistoryByWindow(selectedHours, panOffset);
+    }
+
+    function getBatteryHistory() {
+      return filterHistoryByWindow(batSelectedHours, batPanOffset).filter(p => p.batV !== null && p.batV !== undefined);
+    }
+
+    function drawCombinedChart() {
+      const canvas = document.getElementById("combinedChart");
+      const ctx = canvas.getContext("2d");
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      const data = getFilteredHistory();
+      if (data.length < 2) {
+        ctx.fillStyle = "#9ec0ae";
+        ctx.font = "13px Inter, system-ui, sans-serif";
+        ctx.fillText("Waiting for at least 2 readings to plot...", 18, h / 2);
+        return;
+      }
+
+      const padL = 44, padR = 58, padT = 24, padB = 50;
+      const plotW = w - padL - padR;
+      const plotH = h - padT - padB;
+
+      // Day (06:00-19:00) vs Night background bands + labels
+      let bandStartX = padL;
+      let bandIsDay = null;
+      const drawBandLabel = (xStart, xEnd, isDay) => {
+        if (xEnd - xStart < 48) return;
+        ctx.font = "bold 11px Inter, system-ui, sans-serif";
+        ctx.fillStyle = isDay ? "#eab308" : "#94a3b8";
+        ctx.fillText(isDay ? "☀️ Day" : "🌙 Night", xStart + 8, padT + 14);
+      };
+      for (let i = 0; i < data.length - 1; i++) {
+        const x1 = padL + (i / (data.length - 1)) * plotW;
+        const x2 = padL + ((i + 1) / (data.length - 1)) * plotW;
+        const hr = new Date(Number(data[i].ts)).getHours();
+        const isDay = hr >= 6 && hr < 19;
+        ctx.fillStyle = isDay ? "rgba(234, 179, 8, 0.08)" : "rgba(15, 23, 42, 0.34)";
+        ctx.fillRect(x1, padT, Math.max(1, x2 - x1), plotH);
+        if (bandIsDay === null) { bandIsDay = isDay; bandStartX = x1; }
+        else if (isDay !== bandIsDay) {
+          drawBandLabel(bandStartX, x1, bandIsDay);
+          bandIsDay = isDay;
+          bandStartX = x1;
+        }
+      }
+      if (bandIsDay !== null) drawBandLabel(bandStartX, padL + plotW, bandIsDay);
+
+      // Grid lines (0..100 for Temp & Humidity)
+      ctx.strokeStyle = "#1e4432";
+      ctx.setLineDash([4, 4]);
+      ctx.lineWidth = 1;
+      ctx.fillStyle = "#9ec0ae";
+      ctx.font = "11px Inter, system-ui, sans-serif";
+      [0, 25, 50, 75, 100].forEach(val => {
+        const y = padT + plotH - (val / 100) * plotH;
+        ctx.beginPath();
+        ctx.moveTo(padL, y);
+        ctx.lineTo(w - padR, y);
+        ctx.stroke();
+        ctx.fillText(String(val), 10, y + 4);
+      });
+      ctx.setLineDash([]);
+
+      // Right axis for Lux
+      const maxLux = Math.max(100, ...data.map(p => p.lux ?? 0));
+      ctx.fillStyle = "#eab308";
+      ctx.fillText(`${Math.round(maxLux)} lx`, w - padR + 6, padT + 6);
+      ctx.fillText("0 lx", w - padR + 6, padT + plotH + 4);
+
+      const plotLine = (vals, maxVal, color) => {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2.4;
+        ctx.beginPath();
+        let started = false;
+        vals.forEach((v, idx) => {
+          if (v === null || v === undefined) return;
+          const x = padL + (idx / (data.length - 1)) * plotW;
+          const clamped = Math.max(0, Math.min(maxVal, v));
+          const y = padT + plotH - (clamped / maxVal) * plotH;
+          if (!started) { ctx.moveTo(x, y); started = true; }
+          else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+      };
+
+      if (visible.temp) plotLine(data.map(p => p.temp), 100, "#f97316");
+      if (visible.hum)  plotLine(data.map(p => p.hum), 100, "#34d399");
+      if (visible.lux && data.some(p => p.lux !== null && p.lux !== undefined)) {
+        plotLine(data.map(p => p.lux), maxLux, "#eab308");
+      }
+
+      // Hover crosshair & dots
+      if (hoverIdx >= 0 && hoverIdx < data.length) {
+        const hx = padL + (hoverIdx / (data.length - 1)) * plotW;
+        ctx.strokeStyle = "rgba(255,255,255,0.35)";
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(hx, padT);
+        ctx.lineTo(hx, padT + plotH);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        const pt = data[hoverIdx];
+        const drawDot = (val, maxVal, color) => {
+          if (val === null || val === undefined) return;
+          const y = padT + plotH - (Math.max(0, Math.min(maxVal, val)) / maxVal) * plotH;
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          ctx.arc(hx, y, 4.5, 0, Math.PI * 2);
+          ctx.fill();
+        };
+        if (visible.temp) drawDot(pt.temp, 100, "#f97316");
+        if (visible.hum)  drawDot(pt.hum, 100, "#34d399");
+        if (visible.lux)  drawDot(pt.lux, maxLux, "#eab308");
+      }
+
+      drawAngledTimeAxis(ctx, data, padL, plotW, padT, plotH, 9);
+      drawBatteryChart();
+    }
+
+    let batHoverIdx = -1;
+    function voltToPct(v) {
+      return Math.max(0, Math.min(100, Math.round(((v - 3.0) / 1.2) * 100)));
+    }
+    function formatHourLabel(tsMs) {
+      const d = new Date(Number(tsMs));
+      return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    }
+    function drawAngledTimeAxis(ctx, data, padL, plotW, padT, plotH, maxTicks) {
+      const minTs = Number(data[0].ts);
+      const maxTs = Number(data[data.length - 1].ts);
+      const spanMs = Math.max(1, maxTs - minTs);
+      const spanHrs = spanMs / 3600000;
+
+      // Pick clean aligned interval (whole hours when >= 1.5h, else 15m/10m/5m)
+      let stepMs = 3600000;
+      if (spanHrs <= 0.6) stepMs = 5 * 60000;
+      else if (spanHrs <= 1.5) stepMs = 15 * 60000;
+      else {
+        const hourSteps = [1, 2, 3, 4, 6, 12, 24];
+        const chosenHr = hourSteps.find(h => spanHrs / h <= maxTicks) || 24;
+        stepMs = chosenHr * 3600000;
+      }
+
+      // Align first tick to local whole-hour / step boundary
+      const tzOffsetMs = new Date(minTs).getTimezoneOffset() * 60000;
+      const firstLocal = Math.ceil((minTs - tzOffsetMs) / stepMs) * stepMs + tzOffsetMs;
+
+      ctx.save();
+      ctx.font = "10.5px Inter, system-ui, sans-serif";
+      ctx.textAlign = "right";
+      ctx.textBaseline = "middle";
+      const axisY = padT + plotH;
+
+      for (let t = firstLocal; t <= maxTs; t += stepMs) {
+        const x = padL + ((t - minTs) / spanMs) * plotW;
+        // Subtle vertical hour line
+        ctx.strokeStyle = "rgba(158, 192, 174, 0.12)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x, padT);
+        ctx.lineTo(x, axisY);
+        ctx.stroke();
+
+        ctx.fillStyle = "#9ec0ae";
+        const lbl = formatHourLabel(t);
+        ctx.save();
+        ctx.translate(x, axisY + 8);
+        ctx.rotate(-Math.PI / 4);
+        ctx.fillText(lbl, 0, 0);
+        ctx.restore();
+      }
+      ctx.restore();
+    }
+    function drawBatteryChart() {
+      const canvas = document.getElementById("batteryChart");
+      const ctx = canvas.getContext("2d");
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      const data = getBatteryHistory();
+      const padL = 42, padR = 18, padT = 12, padB = 44;
+      const plotW = w - padL - padR;
+      const plotH = h - padT - padB;
+
+      // Always draw Y-axis & grid
+      ctx.strokeStyle = "#1e4432";
+      ctx.setLineDash([4, 4]);
+      ctx.lineWidth = 1;
+      ctx.fillStyle = "#9ec0ae";
+      ctx.font = "10.5px Inter, system-ui, sans-serif";
+      [0, 25, 50, 75, 100].forEach(pct => {
+        const y = padT + plotH - (pct / 100) * plotH;
+        ctx.beginPath();
+        ctx.moveTo(padL, y);
+        ctx.lineTo(w - padR, y);
+        ctx.stroke();
+        ctx.fillText(`${pct}%`, 6, y + 3.5);
+      });
+      ctx.setLineDash([]);
+
+      if (data.length >= 2) {
+        // Area fill + line (Percentage 0-100%)
+        ctx.beginPath();
+        data.forEach((p, idx) => {
+          const x = padL + (idx / (data.length - 1)) * plotW;
+          const pct = voltToPct(p.batV);
+          const y = padT + plotH - (pct / 100) * plotH;
+          if (idx === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.strokeStyle = "#4ade80";
+        ctx.lineWidth = 2.4;
+        ctx.stroke();
+
+        ctx.lineTo(padL + plotW, padT + plotH);
+        ctx.lineTo(padL, padT + plotH);
+        ctx.closePath();
+        ctx.fillStyle = "rgba(74, 222, 128, 0.12)";
+        ctx.fill();
+      } else if (data.length === 1) {
+        const pct = voltToPct(data[0].batV);
+        const y = padT + plotH - (pct / 100) * plotH;
+        ctx.strokeStyle = "rgba(74, 222, 128, 0.5)";
+        ctx.setLineDash([4, 4]);
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(padL, y);
+        ctx.lineTo(padL + plotW, y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = "#4ade80";
+        ctx.beginPath();
+        ctx.arc(padL + plotW, y, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.font = "bold 11px Inter, system-ui, sans-serif";
+        ctx.fillText(`${pct}%`, padL + plotW - 32, Math.max(padT + 12, y - 8));
+      }
+
+      if (batHoverIdx >= 0 && batHoverIdx < data.length && data.length >= 2) {
+        const p = data[batHoverIdx];
+        const hx = padL + (batHoverIdx / (data.length - 1)) * plotW;
+        const hy = padT + plotH - (voltToPct(p.batV) / 100) * plotH;
+        ctx.fillStyle = "#4ade80";
+        ctx.beginPath();
+        ctx.arc(hx, hy, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      const axisData = data.length >= 2
+        ? data
+        : [{ ts: Date.now() - (batSelectedHours || 24) * 3600000 }, { ts: Date.now() }];
+      drawAngledTimeAxis(ctx, axisData, padL, plotW, padT, plotH, 7);
+    }
+
+    const batCanvas = document.getElementById("batteryChart");
+    const batTooltip = document.getElementById("batTooltip");
+    batCanvas.addEventListener("mousemove", e => {
+      const data = getBatteryHistory();
+      if (data.length < 2) return;
+      const rect = batCanvas.getBoundingClientRect();
+      const mx = (e.clientX - rect.left) * (batCanvas.width / rect.width);
+      const padL = 42, padR = 18;
+      const ratio = Math.max(0, Math.min(1, (mx - padL) / (batCanvas.width - padL - padR)));
+      batHoverIdx = Math.round(ratio * (data.length - 1));
+      const p = data[batHoverIdx];
+      const pct = voltToPct(p.batV);
+      batTooltip.style.display = "block";
+      batTooltip.style.left = `${Math.min(rect.width - 145, Math.max(8, e.clientX - rect.left + 12))}px`;
+      batTooltip.style.top = `${Math.max(6, e.clientY - rect.top - 42)}px`;
+      batTooltip.innerHTML = `<div style="color:#9ec0ae;">${p.label}</div><div style="color:#4ade80;">Battery: <strong>${pct}%</strong> (${p.batV.toFixed(2)} V)</div>`;
+      drawBatteryChart();
+    });
+    batCanvas.addEventListener("mouseleave", () => {
+      batHoverIdx = -1;
+      batTooltip.style.display = "none";
+      drawBatteryChart();
+    });
+
+    const chartCanvas = document.getElementById("combinedChart");
+    const tooltip = document.getElementById("chartTooltip");
+    chartCanvas.addEventListener("mousemove", e => {
+      const data = getFilteredHistory();
+      if (data.length < 2) return;
+      const rect = chartCanvas.getBoundingClientRect();
+      const scaleX = chartCanvas.width / rect.width;
+      const mx = (e.clientX - rect.left) * scaleX;
+      const padL = 44, padR = 58;
+      const plotW = chartCanvas.width - padL - padR;
+      const ratio = Math.max(0, Math.min(1, (mx - padL) / plotW));
+      hoverIdx = Math.round(ratio * (data.length - 1));
+      const pt = data[hoverIdx];
+      tooltip.style.display = "block";
+      tooltip.style.left = `${Math.min(rect.width - 155, Math.max(8, e.clientX - rect.left + 12))}px`;
+      tooltip.style.top = `${Math.max(8, e.clientY - rect.top - 55)}px`;
+      tooltip.innerHTML =
+        `<div style="color:#9ec0ae; margin-bottom:3px;">${pt.label}</div>` +
+        (pt.temp !== null ? `<div style="color:#f97316;">Temp: <strong>${pt.temp} °C</strong></div>` : "") +
+        (pt.hum !== null ? `<div style="color:#34d399;">Humidity: <strong>${pt.hum} %</strong></div>` : "") +
+        (pt.lux !== null ? `<div style="color:#eab308;">Light: <strong>${pt.lux} lx</strong></div>` : "");
+      drawCombinedChart();
+    });
+    chartCanvas.addEventListener("mouseleave", () => {
+      hoverIdx = -1;
+      tooltip.style.display = "none";
+      drawCombinedChart();
+    });
+
+    async function loadTelemetry() {
+      try {
+        const [wRes, cRes] = await Promise.all([
+          fetch(`${RTDB_BASE}/weather_devices/weather-01.json`),
+          fetch(`${RTDB_BASE}/cocoscale_devices.json`)
+        ]);
+        const weather = await wRes.json();
+        const coco = await cRes.json();
+
+        if (weather) {
+          const tempStr = weather.dht_valid ? `${weather.temp_c} °C` : "Err";
+          const humStr  = weather.dht_valid ? `${weather.humidity} %` : "Err";
+          const luxStr  = weather.lux !== undefined ? `${weather.lux} lx` : "--";
+
+          document.getElementById("tempVal").textContent = tempStr;
+          document.getElementById("humVal").textContent = humStr;
+          document.getElementById("luxVal").textContent = luxStr;
+
+          if (weather.rain_raw !== undefined) {
+            const rainText = weather.is_raining ? "RAINING" : "DRY";
+            document.getElementById("rainVal").textContent = rainText;
+            document.getElementById("rainTag").textContent = weather.is_raining ? "RAINING" : "LIVE";
+            document.getElementById("rainSub").textContent = `Wetness: ${weather.rain_pct}%`;
+          } else {
+            document.getElementById("rainVal").textContent = "--";
+            document.getElementById("rainTag").textContent = "LIVE";
+            document.getElementById("rainSub").textContent = "Not connected yet";
+          }
+
+          if (weather.battery_v !== undefined) {
+            document.getElementById("batVal").textContent = `${weather.battery_pct}%`;
+            document.getElementById("batSub").textContent = `(${Number(weather.battery_v).toFixed(2)} V)`;
+          } else {
+            document.getElementById("batVal").textContent = "USB";
+            document.getElementById("batSub").textContent = "Battery not connected";
+          }
+
+          const pointKey = weather.updated_at || Date.now();
+          const ts = weather.updated_at ? new Date(weather.updated_at).toLocaleTimeString() : "just now";
+          if (history.length === 0 || history[history.length - 1].ts !== pointKey) {
+            history.push({
+              ts: pointKey,
+              label: ts,
+              temp: weather.dht_valid ? Number(weather.temp_c) : null,
+              hum: weather.dht_valid ? Number(weather.humidity) : null,
+              lux: weather.lux !== undefined ? Number(weather.lux) : null,
+              batV: weather.battery_v !== undefined ? Number(weather.battery_v) : null
+            });
+            if (history.length > 2000) history = history.slice(-2000);
+            try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); } catch (_) {}
+          }
+
+          // Update Battery & Solar Progress Panel
+          const pill = document.getElementById("batStatusPill");
+          const bar = document.getElementById("batBarFill");
+          const leftTxt = document.getElementById("batPanelLeft");
+          const trendTxt = document.getElementById("batTrendText");
+          const projTxt = document.getElementById("batProjection");
+          if (weather.battery_v !== undefined) {
+            const v = Number(weather.battery_v);
+            const pct = Math.max(0, Math.min(100, Number(weather.battery_pct ?? 0)));
+            const recentPts = history.slice(-20).filter(p => p.batV !== null && p.batV !== undefined);
+            const delta = recentPts.length >= 2 ? v - recentPts[0].batV : 0;
+            const isCharging = delta >= 0.015 || v >= 4.18;
+
+            const espPower = document.getElementById("espPowerState");
+            espPower.className = "bat-status-pill" + (isCharging ? " charging" : v <= 3.3 ? " low" : "");
+            espPower.textContent = v >= 4.18 ? "✅ Battery Full" : isCharging ? "⚡ Solar Charging" : "🔋 Discharging";
+
+            bar.style.width = `${pct}%`;
+            bar.className = "bat-bar-fill" + (isCharging ? " charging" : pct <= 15 ? " low" : pct <= 35 ? " medium" : "");
+            pill.className = "bat-status-pill" + (isCharging ? " charging" : v <= 3.3 ? " low" : "");
+            pill.textContent = v >= 4.18 ? "✅ Full (100%)" : isCharging ? "⚡ Solar Charging" : v <= 3.3 ? "⚠ Low Battery" : "🔋 Discharging";
+            leftTxt.textContent = `${pct}% remaining (${v.toFixed(2)}V / 4.20V)`;
+            trendTxt.textContent = recentPts.length >= 2
+              ? `Trend: ${delta >= 0 ? "+" : ""}${delta.toFixed(2)}V`
+              : "Trend: collecting...";
+
+            // Runtime projection (live drain rate if >= 2 min drop, else power-mode estimate)
+            const mah = Math.max(500, Number(document.getElementById("batteryMahInput").value) || 3000);
+            const sec = Math.max(5, Number(document.getElementById("customSecInput").value) || 10);
+            let avgMa = 85;
+            if (selectedPowerMode === "awake") avgMa = selectedLcdMode === "on" ? 88 : 66;
+            else if (selectedPowerMode === "smart_saver") avgMa = selectedLcdMode === "on" ? 45 : 23;
+            else avgMa = 0.15 + Math.min(1, 4 / sec) * 100;
+
+            let estHours = ((mah * (pct / 100)) / avgMa);
+            let estSource = "mode est.";
+            if (!isCharging && recentPts.length >= 2) {
+              const dtHrs = (Number(recentPts[recentPts.length - 1].ts) - Number(recentPts[0].ts)) / 3600000;
+              const dv = recentPts[0].batV - v;
+              if (dtHrs >= 0.05 && dv >= 0.01 && v > 3.0) {
+                estHours = (v - 3.0) / (dv / dtHrs);
+                estSource = "live drain";
+              }
+            }
+            if (v >= 4.18) {
+              projTxt.textContent = `⏳ Est. Runtime Left: ~${(mah / avgMa / 24).toFixed(1)} days (Full)`;
+            } else if (isCharging) {
+              const toFullHrs = Math.max(0.2, ((mah * (1 - pct / 100)) / 500));
+              projTxt.textContent = `⚡ Charging · ~${toFullHrs.toFixed(1)} hrs to full`;
+            } else if (estHours >= 24) {
+              projTxt.textContent = `⏳ Est. Runtime Left: ~${(estHours / 24).toFixed(1)} days (${estSource})`;
+            } else {
+              projTxt.textContent = `⏳ Est. Runtime Left: ~${estHours.toFixed(1)} hrs (${estSource})`;
+            }
+          } else {
+            const espPower = document.getElementById("espPowerState");
+            espPower.className = "bat-status-pill";
+            espPower.textContent = "🔌 USB Power";
+            bar.style.width = "100%";
+            bar.className = "bat-bar-fill";
+            pill.className = "bat-status-pill";
+            pill.textContent = "🔌 USB Power";
+            leftTxt.textContent = "External USB supply";
+            trendTxt.textContent = "Trend: --";
+            projTxt.textContent = "⏳ Est. Runtime Left: Unlimited (USB)";
+          }
+
+          document.getElementById("lastChecked").textContent = `Last checked: ${ts}`;
+          if (weather.updated_at) {
+            lastUpdatedMs = Number(weather.updated_at);
+            updateCountdown();
+          }
+
+          // Update modal connectivity & power card
+          const rssi = weather.wifi_rssi;
+          if (rssi !== undefined) {
+            const pct = Math.max(0, Math.min(100, 2 * (rssi + 100)));
+            const qual = rssi >= -60 ? "Excellent" : rssi >= -75 ? "Good" : "Fair";
+            document.getElementById("wifiQualityText").textContent = `${qual} · ${pct}% (${rssi} dBm)`;
+          }
+          document.getElementById("wifiDetailText").textContent =
+            `SSID: ${weather.ssid || "--"} · LAN IP: ${weather.lan_ip || "--"}`;
+          document.getElementById("modalBatText").textContent =
+            weather.battery_v !== undefined ? `🔋 ${weather.battery_pct}% (${weather.battery_v}V)` : "🔋 USB Power";
+          document.getElementById("modalMetaText").textContent =
+            `Last ESP32 check-in: ${ts} · Wi-Fi ${rssi ?? "--"} dBm · Firmware v${weather.fw_version || "1.0"}`;
+
+          drawCombinedChart();
+        }
+
+        const cocoList = document.getElementById("cocoList");
+        if (coco && typeof coco === "object") {
+          cocoList.innerHTML = Object.entries(coco).map(([id, dev]) => {
+            const summary = Object.entries(dev || {})
+              .slice(0, 4)
+              .map(([k, v]) => `${k}: <strong>${typeof v === "object" ? JSON.stringify(v) : v}</strong>`)
+              .join(" · ");
+            return `<div class="coco-chip"><strong>${id}</strong> — ${summary || "Online"}</div>`;
+          }).join("");
+        } else {
+          cocoList.innerHTML = `<span style="font-size:0.8rem; color:var(--muted);">No CocoScale devices found.</span>`;
+        }
+      } catch (err) {
+        document.getElementById("lastChecked").textContent = "Firebase error: " + err.message;
+      }
+    }
+
+    let selectedLcdMode = "on";
+    let selectedPowerMode = "awake";
+
+    function setGapSec(sec) {
+      sec = Math.max(5, Number(sec) || 10);
+      document.getElementById("customSecInput").value = sec;
+      document.querySelectorAll("#gapPills .gap-btn").forEach(b => {
+        b.classList.toggle("active", Number(b.dataset.sec) === sec);
+      });
+      updateBatteryEstimate();
+    }
+
+    function setLcdMode(mode) {
+      selectedLcdMode = mode;
+      document.querySelectorAll("#lcdModeGrid .opt-card").forEach(c => {
+        c.classList.toggle("active", c.dataset.lcd === mode);
+      });
+      document.getElementById("lcdSummary").textContent = mode === "on" ? "ON" : mode === "off" ? "OFF" : mode.toUpperCase();
+      updateBatteryEstimate();
+    }
+
+    function setPowerMode(mode) {
+      selectedPowerMode = mode;
+      document.querySelectorAll("#powerModeGrid .opt-card").forEach(c => {
+        c.classList.toggle("active", c.dataset.power === mode);
+      });
+      updateBatteryEstimate();
+    }
+
+    function updateBatteryEstimate() {
+      const mah = Math.max(500, Number(document.getElementById("batteryMahInput").value) || 3000);
+      const sec = Math.max(5, Number(document.getElementById("customSecInput").value) || 10);
+      let avgMa = 85;
+      if (selectedPowerMode === "awake") {
+        avgMa = selectedLcdMode === "on" ? 88 : 66;
+      } else if (selectedPowerMode === "smart_saver") {
+        avgMa = selectedLcdMode === "on" ? 45 : 23;
+      } else {
+        // deep_sleep: ~0.15mA sleep + ~100mA for 4s per wake
+        const activeRatio = Math.min(1, 4 / sec);
+        avgMa = 0.15 + activeRatio * 100;
+      }
+      const days = mah / (avgMa * 24);
+      document.getElementById("estBatteryText").textContent = `~${days.toFixed(1)} days (${avgMa.toFixed(1)} mA avg)`;
+      document.getElementById("activeSummaryText").textContent =
+        `Active on ESP32 (${sec}s · ${selectedPowerMode.replace("_", " ")} · LCD: ${selectedLcdMode})`;
+    }
+
+    document.querySelectorAll("#gapPills .gap-btn").forEach(btn => {
+      btn.addEventListener("click", () => setGapSec(btn.dataset.sec));
+    });
+    document.getElementById("customSecInput").addEventListener("input", e => setGapSec(e.target.value));
+    document.querySelectorAll("#lcdModeGrid .opt-card").forEach(card => {
+      card.addEventListener("click", () => setLcdMode(card.dataset.lcd));
+    });
+    document.querySelectorAll("#powerModeGrid .opt-card").forEach(card => {
+      card.addEventListener("click", () => setPowerMode(card.dataset.power));
+    });
+    document.getElementById("batteryMahInput").addEventListener("input", updateBatteryEstimate);
+
+    async function loadConfig() {
+      try {
+        const res = await fetch(`${RTDB_BASE}/weather_config/weather-01.json`);
+        const cfg = await res.json();
+        if (cfg && !configLoaded) {
+          if (cfg.read_interval_sec) {
+            currentReadIntervalSec = Number(cfg.read_interval_sec);
+            setGapSec(currentReadIntervalSec);
+            document.getElementById("intervalBadge").textContent = `Every ${currentReadIntervalSec}s`;
+            updateCountdown();
+          }
+          if (cfg.sheet_interval_sec) ensureOption("sheetInterval", String(cfg.sheet_interval_sec));
+          if (typeof cfg.night_eco_enabled === "boolean") document.getElementById("nightEcoToggle").checked = cfg.night_eco_enabled;
+          if (cfg.night_eco_interval_sec) ensureOption("nightEcoSec", String(cfg.night_eco_interval_sec));
+          if (cfg.lcd_mode) setLcdMode(cfg.lcd_mode);
+          else if (typeof cfg.lcd_backlight === "boolean") setLcdMode(cfg.lcd_backlight ? "on" : "text_only");
+          if (cfg.power_mode) setPowerMode(cfg.power_mode);
+          else if (typeof cfg.deep_sleep_enabled === "boolean") setPowerMode(cfg.deep_sleep_enabled ? "deep_sleep" : "awake");
+          configLoaded = true;
+        }
+      } catch (_) {}
+      updateBatteryEstimate();
+    }
+
+    function ensureOption(selectId, val) {
+      const sel = document.getElementById(selectId);
+      if (![...sel.options].some(o => o.value === val)) {
+        const opt = document.createElement("option");
+        opt.value = val;
+        opt.textContent = `${val} sec`;
+        sel.appendChild(opt);
+      }
+      sel.value = val;
+    }
+
+    document.getElementById("saveBtn").addEventListener("click", async () => {
+      const msg = document.getElementById("saveMsg");
+      msg.textContent = "Saving...";
+      const readSec = Math.max(5, Number(document.getElementById("customSecInput").value) || 10);
+      const payload = {
+        read_interval_sec: readSec,
+        sheet_interval_sec: Number(document.getElementById("sheetInterval").value),
+        night_eco_enabled: document.getElementById("nightEcoToggle").checked,
+        night_eco_interval_sec: Number(document.getElementById("nightEcoSec").value),
+        lcd_mode: selectedLcdMode,
+        power_mode: selectedPowerMode
+      };
+      try {
+        const res = await fetch(`${RTDB_BASE}/weather_config/weather-01.json`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        currentReadIntervalSec = readSec;
+        document.getElementById("intervalBadge").textContent = `Every ${readSec}s`;
+        updateCountdown();
+        updateBatteryEstimate();
+        msg.textContent = "Saved! ESP32 will apply on its next cycle.";
+      } catch (err) {
+        msg.textContent = "Save failed: " + err.message;
+      }
+    });
+
+    const openModal = () => document.getElementById("espModal").classList.add("open");
+    const closeModal = () => document.getElementById("espModal").classList.remove("open");
+
+    document.getElementById("syncBtn").addEventListener("click", loadTelemetry);
+    document.getElementById("quickLcdBtn").addEventListener("click", async () => {
+      const nextMode = selectedLcdMode === "on" ? "text_only" : "on";
+      setLcdMode(nextMode);
+      try {
+        await fetch(`${RTDB_BASE}/weather_config/weather-01.json`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ lcd_mode: nextMode })
+        });
+      } catch (_) {}
+    });
+    document.getElementById("openControlBtn").addEventListener("click", openModal);
+    document.getElementById("esp32Btn").addEventListener("click", openModal);
+    document.getElementById("closeModalBtn").addEventListener("click", closeModal);
+    document.getElementById("espModal").addEventListener("click", e => {
+      if (e.target.id === "espModal") closeModal();
+    });
+    document.getElementById("historyBtn").addEventListener("click", () => {
+      const box = document.getElementById("historyBox");
+      box.style.display = box.style.display === "none" ? "block" : "none";
+    });
+
+    setGapSec(10);
+    const SHEET_EXEC_URL = "https://script.google.com/macros/s/AKfycbzjwD6LuNSgaC4mDKymHxUg6Ieb14AVkFbJnIxixVzbIAhshHhNFBUpVMl_5tyZ5Sgo/exec";
+    async function loadSheetHistory() {
+      try {
+        const res = await fetch(SHEET_EXEC_URL);
+        if (!res.ok) return;
+        const json = await res.json();
+        if (!json.ok || !Array.isArray(json.items) || json.items.length === 0) return;
+
+        const byTs = new Map();
+        json.items.forEach(it => {
+          byTs.set(Number(it.ts), {
+            ts: Number(it.ts),
+            label: new Date(Number(it.ts)).toLocaleTimeString(),
+            temp: it.temp,
+            hum: it.hum,
+            lux: it.lux,
+            batV: it.batV
+          });
+        });
+        history.forEach(p => {
+          if (!byTs.has(Number(p.ts))) byTs.set(Number(p.ts), p);
+        });
+        history = [...byTs.values()].sort((a, b) => Number(a.ts) - Number(b.ts)).slice(-2000);
+        try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); } catch (_) {}
+        drawCombinedChart();
+      } catch (_) {}
+    }
+
+    drawCombinedChart();
+    loadSheetHistory();
+    loadConfig();
+    loadTelemetry();
+    setInterval(loadTelemetry, 5000);
+    setInterval(updateCountdown, 1000);
+  </script>
+</body>
+</html>

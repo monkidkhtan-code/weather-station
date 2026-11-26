@@ -17,35 +17,52 @@
 
 #include <WiFi.h>
 #include <WiFiMulti.h>
+#include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <Wire.h>
+#include <time.h>
+#include <Preferences.h>
 #include <DHT.h>
 #include <BH1750.h>
 #include <LiquidCrystal_I2C.h>
 #include <ArduinoJson.h>
 
+#define FW_VERSION "1.1"
+#define BOOT_BTN_PIN 0
+
 // ===================== USER CONFIGURATION =====================
-// Network 1: Farm Wi-Fi & Server
+// Network 1: Farm Wi-Fi
 const char* FARM_SSID       = "KHAGRIFARM_2.4";
 const char* FARM_PASSWORD   = "123123farm";
-const char* FARM_SERVER_URL = "http://192.168.0.219:8000/api/telemetry";
 
-// Network 2: Home Wi-Fi & Server
+// Network 2: Home Wi-Fi
 const char* HOME_SSID       = "YOUR_HOME_2.4GHZ_WIFI";
 const char* HOME_PASSWORD   = "YOUR_HOME_WIFI_PASSWORD";
-const char* HOME_SERVER_URL = "http://192.168.1.100:8000/api/telemetry";
 
-const char* DEVICE_ID       = "weather-01";
+// Firebase Realtime Database (KH Agrifarm - works from both Farm & Home)
+const char* FIREBASE_URL        = "https://kh-agrifarm-default-rtdb.asia-southeast1.firebasedatabase.app/weather_devices/weather-01.json";
+const char* FIREBASE_CONFIG_URL = "https://kh-agrifarm-default-rtdb.asia-southeast1.firebasedatabase.app/weather_config/weather-01.json";
 
-// Timing
-const unsigned long LCD_INTERVAL_MS  = 2000;   // Update LCD every 2s
-const unsigned long SEND_INTERVAL_MS = 10000;  // Send data to server every 10s
+// Google Sheets Apps Script Web App URL (leave "" to disable until deployed)
+const char* GOOGLE_SCRIPT_URL   = "https://script.google.com/macros/s/AKfycbzjwD6LuNSgaC4mDKymHxUg6Ieb14AVkFbJnIxixVzbIAhshHhNFBUpVMl_5tyZ5Sgo/exec";
+
+const char* DEVICE_ID           = "weather-01";
+
+// Default Timing & Modes (controlled remotely via Firebase /weather_config/weather-01)
+const unsigned long LCD_INTERVAL_MS   = 2000;    // Update LCD every 2s
+unsigned long sendIntervalMs          = 10000;   // read_interval_sec (default 10s, min 5s)
+unsigned long sheetIntervalMs         = 300000;  // sheet_interval_sec (default 300s / 5 min)
+bool nightEcoEnabled                  = false;   // night_eco_enabled (7 PM - 6 AM)
+unsigned long nightEcoIntervalMs      = 1800000; // night_eco_interval_sec (default 30 min)
+String lcdMode                        = "on";    // "on" | "text_only" | "flash_sync" | "off"
+String powerMode                      = "awake"; // "awake" | "smart_saver" | "deep_sleep"
+unsigned long lcdWakeUntilMs          = 0;       // Temp 30s wake when BOOT button pressed
 
 // Enable each module as you connect it (prevents noisy readings from empty pins)
 #define ENABLE_DHT22   true
-#define ENABLE_BH1750  false
-#define ENABLE_RAIN    false
-#define ENABLE_BATTERY false
+#define ENABLE_BH1750  true
+#define ENABLE_RAIN    true
+#define ENABLE_BATTERY true
 // ==============================================================
 
 // Pin Definitions
@@ -79,17 +96,14 @@ struct SensorReading {
 
 unsigned long lastLcdUpdate = 0;
 unsigned long lastSendTime  = 0;
+unsigned long lastSheetTime = 0;
+bool sheetSentOnce = false;
+bool sentOnBoot = false;
 bool showSecondPage = false;
 
+Preferences prefs;
 WiFiMulti wifiMulti;
 bool wifiInitialized = false;
-
-const char* getServerUrl() {
-  if (WiFi.SSID() == HOME_SSID) {
-    return HOME_SERVER_URL;
-  }
-  return FARM_SERVER_URL;
-}
 
 void connectWiFi() {
   if (!wifiInitialized) {
@@ -201,15 +215,73 @@ void updateLcd(const SensorReading& r) {
   showSecondPage = !showSecondPage;
 }
 
+void applyLcdMode(bool duringSync = false) {
+  if (millis() < lcdWakeUntilMs) {
+    lcd.display();
+    lcd.backlight();
+    return;
+  }
+  // Force LCD completely off in Ultra Deep Sleep unless woken by BOOT button
+  if (powerMode == "deep_sleep") {
+    lcd.noBacklight();
+    lcd.noDisplay();
+    return;
+  }
+  if (lcdMode == "on") {
+    lcd.display();
+    lcd.backlight();
+  } else if (lcdMode == "text_only") {
+    lcd.display();
+    lcd.noBacklight();
+  } else if (lcdMode == "flash_sync") {
+    lcd.display();
+    if (duringSync) lcd.backlight();
+    else lcd.noBacklight();
+  } else {
+    // "off"
+    lcd.noBacklight();
+    lcd.noDisplay();
+  }
+}
+
+void applyPowerMode() {
+  if (powerMode == "smart_saver") {
+    setCpuFrequencyMhz(80);
+    WiFi.setSleep(true);
+  } else {
+    setCpuFrequencyMhz(240);
+    WiFi.setSleep(false);
+  }
+}
+
+unsigned long getEffectiveIntervalMs() {
+  if (nightEcoEnabled) {
+    struct tm timeinfo;
+    if (getLocalTime(&timeinfo, 10)) {
+      int hr = timeinfo.tm_hour;
+      if (hr >= 19 || hr < 6) {
+        return max(sendIntervalMs, nightEcoIntervalMs);
+      }
+    }
+  }
+  return sendIntervalMs;
+}
+
 void sendTelemetry(const SensorReading& r) {
   if (WiFi.status() != WL_CONNECTED) {
     connectWiFi();
     if (WiFi.status() != WL_CONNECTED) return;
   }
 
+  if (lcdMode == "flash_sync") applyLcdMode(true);
+
   JsonDocument doc;
   doc["device_id"]   = DEVICE_ID;
   doc["device_type"] = "weather";
+  doc["fw_version"]  = FW_VERSION;
+  doc["wifi_rssi"]   = WiFi.RSSI();
+  doc["ssid"]        = WiFi.SSID();
+  doc["lan_ip"]      = WiFi.localIP().toString();
   doc["dht_valid"]   = r.dhtValid;
   if (ENABLE_DHT22) {
     doc["temp_c"]    = round(r.tempC * 10.0) / 10.0;
@@ -227,21 +299,120 @@ void sendTelemetry(const SensorReading& r) {
     doc["battery_v"]   = round(r.batteryV * 100.0) / 100.0;
     doc["battery_pct"] = r.batteryPercent;
   }
+  doc["updated_at"][".sv"] = "timestamp";
 
   String payload;
   serializeJson(doc, payload);
 
-  const char* targetUrl = getServerUrl();
+  WiFiClientSecure client;
+  client.setInsecure();
   HTTPClient http;
-  http.begin(targetUrl);
+  http.begin(client, FIREBASE_URL);
   http.addHeader("Content-Type", "application/json");
-  http.setTimeout(4000);
+  http.setTimeout(5000);
 
-  int httpCode = http.POST(payload);
+  int httpCode = http.PUT(payload);
   if (httpCode > 0) {
-    Serial.printf("POST %s -> HTTP %d\n", targetUrl, httpCode);
+    Serial.printf("PUT Firebase -> HTTP %d\n", httpCode);
   } else {
-    Serial.printf("POST failed: %s\n", http.errorToString(httpCode).c_str());
+    Serial.printf("PUT Firebase failed: %s\n", http.errorToString(httpCode).c_str());
+  }
+  http.end();
+
+  unsigned long now = millis();
+  if (GOOGLE_SCRIPT_URL[0] != '\0' && (!sheetSentOnce || now - lastSheetTime >= sheetIntervalMs)) {
+    lastSheetTime = now;
+    sheetSentOnce = true;
+
+    WiFiClientSecure gsClient;
+    gsClient.setInsecure();
+    HTTPClient gsHttp;
+    gsHttp.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
+    gsHttp.begin(gsClient, GOOGLE_SCRIPT_URL);
+    gsHttp.addHeader("Content-Type", "application/json");
+    gsHttp.setTimeout(8000);
+
+    int gsCode = gsHttp.POST(payload);
+    if (gsCode == 200 || gsCode == 302) {
+      Serial.printf("POST Google Sheet -> OK (HTTP %d)\n", gsCode);
+    } else if (gsCode > 0) {
+      Serial.printf("POST Google Sheet -> HTTP %d: %s\n", gsCode, gsHttp.getString().c_str());
+    } else {
+      Serial.printf("POST Google Sheet failed: %s\n", gsHttp.errorToString(gsCode).c_str());
+    }
+    gsHttp.end();
+  }
+}
+
+void fetchRemoteConfig() {
+  if (WiFi.status() != WL_CONNECTED) return;
+
+  WiFiClientSecure client;
+  client.setInsecure();
+  HTTPClient http;
+  http.begin(client, FIREBASE_CONFIG_URL);
+  http.setTimeout(5000);
+
+  int code = http.GET();
+  if (code == 200) {
+    String body = http.getString();
+    body.trim();
+    if (body == "null" || body.length() == 0) {
+      JsonDocument defDoc;
+      defDoc["read_interval_sec"]      = sendIntervalMs / 1000;
+      defDoc["sheet_interval_sec"]     = sheetIntervalMs / 1000;
+      defDoc["night_eco_enabled"]      = nightEcoEnabled;
+      defDoc["night_eco_interval_sec"] = nightEcoIntervalMs / 1000;
+      defDoc["lcd_mode"]               = lcdMode;
+      defDoc["power_mode"]             = powerMode;
+      String defPayload;
+      serializeJson(defDoc, defPayload);
+      http.end();
+
+      HTTPClient putHttp;
+      putHttp.begin(client, FIREBASE_CONFIG_URL);
+      putHttp.addHeader("Content-Type", "application/json");
+      putHttp.PUT(defPayload);
+      putHttp.end();
+      Serial.println("Seeded default /weather_config/weather-01 in Firebase");
+      return;
+    }
+
+    JsonDocument cfg;
+    if (deserializeJson(cfg, body) == DeserializationError::Ok) {
+      if (cfg["read_interval_sec"].is<int>()) {
+        int sec = max(5, cfg["read_interval_sec"].as<int>());
+        sendIntervalMs = (unsigned long)sec * 1000UL;
+      }
+      if (cfg["sheet_interval_sec"].is<int>()) {
+        int sec = max(30, cfg["sheet_interval_sec"].as<int>());
+        sheetIntervalMs = (unsigned long)sec * 1000UL;
+      }
+      if (cfg["night_eco_enabled"].is<bool>()) {
+        nightEcoEnabled = cfg["night_eco_enabled"].as<bool>();
+      }
+      if (cfg["night_eco_interval_sec"].is<int>()) {
+        int sec = max(60, cfg["night_eco_interval_sec"].as<int>());
+        nightEcoIntervalMs = (unsigned long)sec * 1000UL;
+      }
+      if (cfg["lcd_mode"].is<const char*>()) {
+        lcdMode = cfg["lcd_mode"].as<String>();
+      } else if (cfg["lcd_backlight"].is<bool>()) {
+        lcdMode = cfg["lcd_backlight"].as<bool>() ? "on" : "text_only";
+      }
+      if (cfg["power_mode"].is<const char*>()) {
+        powerMode = cfg["power_mode"].as<String>();
+      } else if (cfg["deep_sleep_enabled"].is<bool>()) {
+        powerMode = cfg["deep_sleep_enabled"].as<bool>() ? "deep_sleep" : "awake";
+      }
+      prefs.begin("weather_cfg", false);
+      prefs.putString("lcd_mode", lcdMode);
+      prefs.putString("power_mode", powerMode);
+      prefs.end();
+
+      applyLcdMode(false);
+      applyPowerMode();
+    }
   }
   http.end();
 }
@@ -251,15 +422,27 @@ void setup() {
   delay(300);
   Serial.println("\n=== ESP32 Weather Station Starting ===");
 
+  prefs.begin("weather_cfg", true);
+  lcdMode   = prefs.getString("lcd_mode", lcdMode);
+  powerMode = prefs.getString("power_mode", powerMode);
+  prefs.end();
+
+  if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0) {
+    lcdWakeUntilMs = millis() + 30000UL;
+  }
+
+  pinMode(BOOT_BTN_PIN, INPUT_PULLUP);
   analogReadResolution(12);
   Wire.begin(21, 22);
 
   lcd.init();
-  lcd.backlight();
-  lcd.setCursor(0, 0);
-  lcd.print("Weather Station");
-  lcd.setCursor(0, 1);
-  lcd.print("Connecting WiFi");
+  applyLcdMode(false);
+  if (powerMode != "deep_sleep" && lcdMode != "off") {
+    lcd.setCursor(0, 0);
+    lcd.print("KH ClimateSense");
+    lcd.setCursor(0, 1);
+    lcd.print("Connecting WiFi");
+  }
 
   if (ENABLE_DHT22) {
     dht.begin();
@@ -271,19 +454,42 @@ void setup() {
   }
 
   connectWiFi();
+  configTime(8 * 3600, 0, "pool.ntp.org", "time.nist.gov");
+  fetchRemoteConfig();
 }
 
 void loop() {
   unsigned long now = millis();
 
-  if (now - lastLcdUpdate >= LCD_INTERVAL_MS) {
+  // Pressing BOOT button wakes LCD for 30s in headless/off/deep_sleep modes
+  if (digitalRead(BOOT_BTN_PIN) == LOW) {
+    lcdWakeUntilMs = now + 30000UL;
+    applyLcdMode(false);
+  }
+
+  if (!sentOnBoot || now - lastLcdUpdate >= LCD_INTERVAL_MS) {
     lastLcdUpdate = now;
     SensorReading r = readSensors();
-    updateLcd(r);
+    if ((powerMode != "deep_sleep" && lcdMode != "off") || now < lcdWakeUntilMs) {
+      updateLcd(r);
+    }
+    applyLcdMode(false);
 
-    if (now - lastSendTime >= SEND_INTERVAL_MS) {
+    unsigned long effectiveMs = getEffectiveIntervalMs();
+    if (!sentOnBoot || now - lastSendTime >= effectiveMs) {
+      sentOnBoot = true;
       lastSendTime = now;
       sendTelemetry(r);
+      fetchRemoteConfig();
+
+      if (powerMode == "deep_sleep" && millis() >= lcdWakeUntilMs) {
+        uint64_t sleepSec = max(5UL, getEffectiveIntervalMs() / 1000UL);
+        Serial.printf("Entering Deep Sleep for %llu s...\n", sleepSec);
+        Serial.flush();
+        esp_sleep_enable_ext0_wakeup(GPIO_NUM_0, 0);
+        esp_sleep_enable_timer_wakeup(sleepSec * 1000000ULL);
+        esp_deep_sleep_start();
+      }
     }
   }
 }

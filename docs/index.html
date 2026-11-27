@@ -673,7 +673,7 @@
       <div>
         <div class="brand-title-row">
           <h1>KH ClimateSense</h1>
-          <span class="ver-pill">v1.0.0</span>
+          <span class="ver-pill">v1.2.0</span>
         </div>
         <div class="brand-sub">Farm Microclimate &amp; Weather Station</div>
       </div>
@@ -856,7 +856,7 @@
         <div>
           <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
             <strong style="font-size:0.95rem;">KH ClimateSense</strong>
-            <span class="fw-pill">App v1.0.0 · ESP32 FW v1.0</span>
+            <span class="fw-pill" id="footerFwPill">App v1.2.0 · ESP32 FW v1.1</span>
             <span class="live-pill">LIVE FIREBASE</span>
             <span style="font-size:0.76rem; color:var(--muted);">Updated: Nov 2026</span>
           </div>
@@ -871,13 +871,15 @@
 
       <div class="footer-mid">
         <div>
-          <div style="font-size:0.74rem; font-weight:700; color:#4ade80; letter-spacing:0.05em;">LATEST UPDATE (V1.0.0 · FIRMWARE V1.0)</div>
+          <div style="font-size:0.74rem; font-weight:700; color:#4ade80; letter-spacing:0.05em;" id="footerLatestTitle">LATEST UPDATE (V1.2.0 · FIRMWARE V1.1)</div>
           <div style="font-size:0.8rem; color:#cbd5e1; margin-top:5px;">
-            <span class="ver-pill" style="margin-right:6px;">v1.0.0</span>
-            Firebase RTDB live telemetry, Google Sheets 5-min history logger, remote interval &amp; LCD backlight control, and 3-in-1 climate curve.
+            <span class="ver-pill" style="margin-right:6px;">v1.2.0</span>
+            Color-coded Climate Curve toggles, Battery &amp; Solar Progress panel with percentage/hourly chart &amp; runtime projection, and Ultra Deep Sleep LCD-off power saving.
           </div>
           <div id="historyBox" style="display:none; font-size:0.76rem; color:var(--muted); margin-top:6px;">
-            • v1.0.0 (Nov 2026): Initial release with KH CocoScale theme, live countdown, and wireless ESP32 config.
+            • v1.2.0 (27 Nov 2026): Color-coded chart series buttons, PWA installable app support, Battery % hourly graph &amp; solar charging status.<br/>
+            • v1.1.0 (26 Nov 2026): ESP32 Hardware &amp; LCD modal, Night Eco Mode, 4 LCD modes, Smart Saver / Ultra Deep Sleep, and watermark sensor cards.<br/>
+            • v1.0.0 (19 Nov 2026): Initial release with Firebase RTDB, Google Sheets logger, and 3-in-1 Climate Curve.
           </div>
         </div>
         <div>
@@ -1620,7 +1622,10 @@
           document.getElementById("modalBatText").textContent =
             weather.battery_v !== undefined ? `🔋 ${weather.battery_pct}% (${weather.battery_v}V)` : "🔋 USB Power";
           document.getElementById("modalMetaText").textContent =
-            `Last ESP32 check-in: ${ts} · Wi-Fi ${rssi ?? "--"} dBm · Firmware v${weather.fw_version || "1.0"}`;
+            `Last ESP32 check-in: ${ts} · Wi-Fi ${rssi ?? "--"} dBm · Firmware v${weather.fw_version || "1.1"}`;
+          const fwVer = weather.fw_version || "1.1";
+          document.getElementById("footerFwPill").textContent = `App v1.2.0 · ESP32 FW v${fwVer}`;
+          document.getElementById("footerLatestTitle").textContent = `LATEST UPDATE (V1.2.0 · FIRMWARE V${fwVer})`;
 
           drawCombinedChart();
         }

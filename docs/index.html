@@ -690,7 +690,7 @@
       <div>
         <div class="brand-title-row">
           <h1>KH ClimateSense</h1>
-          <span class="ver-pill">v1.2.1</span>
+          <span class="ver-pill">v1.2.2</span>
         </div>
         <div class="brand-sub">Farm Microclimate &amp; Weather Station</div>
       </div>
@@ -1090,12 +1090,59 @@
       document.getElementById("panNext").disabled = (panOffset === 0 || !selectedHours);
     }
 
+    async function saveAppPrefs() {
+      try {
+        await fetch(`${RTDB_BASE}/weather_config/weather-01/appPrefs.json`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            visible,
+            climate_hours: selectedHours,
+            battery_hours: batSelectedHours,
+            battery_mah: Number(document.getElementById("batteryMahInput").value) || 3000
+          })
+        });
+      } catch (_) {}
+    }
+
+    function applyAppPrefs(prefs) {
+      if (!prefs || typeof prefs !== "object") return;
+      if (prefs.visible && typeof prefs.visible === "object") {
+        ["temp", "hum", "lux"].forEach(k => {
+          if (typeof prefs.visible[k] === "boolean") {
+            visible[k] = prefs.visible[k];
+            const btn = document.querySelector(`.series-btn[data-series="${k}"]`);
+            if (btn) btn.classList.toggle("active", visible[k]);
+          }
+        });
+      }
+      if (prefs.climate_hours !== undefined) {
+        selectedHours = Number(prefs.climate_hours);
+        document.querySelectorAll("#rangePills .series-btn").forEach(b => {
+          b.classList.toggle("active", Number(b.dataset.hours) === selectedHours);
+        });
+        updatePanUI();
+      }
+      if (prefs.battery_hours !== undefined) {
+        batSelectedHours = Number(prefs.battery_hours);
+        document.querySelectorAll("#batRangePills .series-btn").forEach(b => {
+          b.classList.toggle("active", Number(b.dataset.hours) === batSelectedHours);
+        });
+        updateBatPanUI();
+      }
+      if (prefs.battery_mah) {
+        document.getElementById("batteryMahInput").value = Number(prefs.battery_mah);
+      }
+      drawCombinedChart();
+    }
+
     document.querySelectorAll(".series-btn[data-series]").forEach(btn => {
       btn.addEventListener("click", () => {
         const key = btn.dataset.series;
         visible[key] = !visible[key];
         btn.classList.toggle("active", visible[key]);
         drawCombinedChart();
+        saveAppPrefs();
       });
     });
 
@@ -1108,6 +1155,7 @@
         hoverIdx = -1;
         updatePanUI();
         drawCombinedChart();
+        saveAppPrefs();
       });
     });
 
@@ -1156,6 +1204,7 @@
         batHoverIdx = -1;
         updateBatPanUI();
         drawBatteryChart();
+        saveAppPrefs();
       });
     });
 
@@ -1214,19 +1263,23 @@
       const padL = 44, padR = 58, padT = 24, padB = 50;
       const plotW = w - padL - padR;
       const plotH = h - padT - padB;
+      const minTs = Number(data[0].ts);
+      const maxTs = Number(data[data.length - 1].ts);
+      const spanMs = Math.max(1, maxTs - minTs);
+      const xForTs = ts => padL + ((Number(ts) - minTs) / spanMs) * plotW;
 
-      // Day (06:00-19:00) vs Night background bands + labels
+      // Day (06:00-19:00) vs Night background bands + labels (aligned to exact timestamps)
       let bandStartX = padL;
       let bandIsDay = null;
       const drawBandLabel = (xStart, xEnd, isDay) => {
-        if (xEnd - xStart < 48) return;
+        if (xEnd - xStart < 44) return;
         ctx.font = "bold 11px Inter, system-ui, sans-serif";
         ctx.fillStyle = isDay ? "#eab308" : "#94a3b8";
         ctx.fillText(isDay ? "☀️ Day" : "🌙 Night", xStart + 8, padT + 14);
       };
       for (let i = 0; i < data.length - 1; i++) {
-        const x1 = padL + (i / (data.length - 1)) * plotW;
-        const x2 = padL + ((i + 1) / (data.length - 1)) * plotW;
+        const x1 = xForTs(data[i].ts);
+        const x2 = xForTs(data[i + 1].ts);
         const hr = new Date(Number(data[i].ts)).getHours();
         const isDay = hr >= 6 && hr < 19;
         ctx.fillStyle = isDay ? "rgba(234, 179, 8, 0.08)" : "rgba(15, 23, 42, 0.34)";
@@ -1269,7 +1322,7 @@
         let started = false;
         vals.forEach((v, idx) => {
           if (v === null || v === undefined) return;
-          const x = padL + (idx / (data.length - 1)) * plotW;
+          const x = xForTs(data[idx].ts);
           const clamped = Math.max(0, Math.min(maxVal, v));
           const y = padT + plotH - (clamped / maxVal) * plotH;
           if (!started) { ctx.moveTo(x, y); started = true; }
@@ -1286,7 +1339,7 @@
 
       // Hover crosshair & dots
       if (hoverIdx >= 0 && hoverIdx < data.length) {
-        const hx = padL + (hoverIdx / (data.length - 1)) * plotW;
+        const hx = xForTs(data[hoverIdx].ts);
         ctx.strokeStyle = "rgba(255,255,255,0.35)";
         ctx.setLineDash([3, 3]);
         ctx.beginPath();
@@ -1309,7 +1362,7 @@
         if (visible.lux)  drawDot(pt.lux, maxLux, "#eab308");
       }
 
-      drawAngledTimeAxis(ctx, data, padL, plotW, padT, plotH, 9);
+      drawAngledTimeAxis(ctx, data, padL, plotW, padT, plotH, 13);
       drawBatteryChart();
     }
 
@@ -1320,6 +1373,19 @@
     function formatHourLabel(tsMs) {
       const d = new Date(Number(tsMs));
       return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    }
+    function formatTooltipTime(tsMs) {
+      const d = new Date(Number(tsMs));
+      return d.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", second: "2-digit" });
+    }
+    function findNearestByTs(data, targetTs) {
+      let bestIdx = 0;
+      let bestDiff = Infinity;
+      for (let i = 0; i < data.length; i++) {
+        const diff = Math.abs(Number(data[i].ts) - targetTs);
+        if (diff < bestDiff) { bestDiff = diff; bestIdx = i; }
+      }
+      return bestIdx;
     }
     function drawAngledTimeAxis(ctx, data, padL, plotW, padT, plotH, maxTicks) {
       const minTs = Number(data[0].ts);
@@ -1396,10 +1462,15 @@
       ctx.setLineDash([]);
 
       if (data.length >= 2) {
-        // Area fill + line (Percentage 0-100%)
+        const minTs = Number(data[0].ts);
+        const maxTs = Number(data[data.length - 1].ts);
+        const spanMs = Math.max(1, maxTs - minTs);
+        const xForTs = ts => padL + ((Number(ts) - minTs) / spanMs) * plotW;
+
+        // Area fill + line (Percentage 0-100%, positioned by actual timestamp)
         ctx.beginPath();
         data.forEach((p, idx) => {
-          const x = padL + (idx / (data.length - 1)) * plotW;
+          const x = xForTs(p.ts);
           const pct = voltToPct(p.batV);
           const y = padT + plotH - (pct / 100) * plotH;
           if (idx === 0) ctx.moveTo(x, y);
@@ -1409,11 +1480,21 @@
         ctx.lineWidth = 2.4;
         ctx.stroke();
 
-        ctx.lineTo(padL + plotW, padT + plotH);
-        ctx.lineTo(padL, padT + plotH);
+        ctx.lineTo(xForTs(data[data.length - 1].ts), padT + plotH);
+        ctx.lineTo(xForTs(data[0].ts), padT + plotH);
         ctx.closePath();
         ctx.fillStyle = "rgba(74, 222, 128, 0.12)";
         ctx.fill();
+
+        if (batHoverIdx >= 0 && batHoverIdx < data.length) {
+          const p = data[batHoverIdx];
+          const hx = xForTs(p.ts);
+          const hy = padT + plotH - (voltToPct(p.batV) / 100) * plotH;
+          ctx.fillStyle = "#4ade80";
+          ctx.beginPath();
+          ctx.arc(hx, hy, 4.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
       } else if (data.length === 1) {
         const pct = voltToPct(data[0].batV);
         const y = padT + plotH - (pct / 100) * plotH;
@@ -1433,20 +1514,10 @@
         ctx.fillText(`${pct}%`, padL + plotW - 32, Math.max(padT + 12, y - 8));
       }
 
-      if (batHoverIdx >= 0 && batHoverIdx < data.length && data.length >= 2) {
-        const p = data[batHoverIdx];
-        const hx = padL + (batHoverIdx / (data.length - 1)) * plotW;
-        const hy = padT + plotH - (voltToPct(p.batV) / 100) * plotH;
-        ctx.fillStyle = "#4ade80";
-        ctx.beginPath();
-        ctx.arc(hx, hy, 4.5, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
       const axisData = data.length >= 2
         ? data
         : [{ ts: Date.now() - (batSelectedHours || 24) * 3600000 }, { ts: Date.now() }];
-      drawAngledTimeAxis(ctx, axisData, padL, plotW, padT, plotH, 7);
+      drawAngledTimeAxis(ctx, axisData, padL, plotW, padT, plotH, 9);
     }
 
     const batCanvas = document.getElementById("batteryChart");
@@ -1458,13 +1529,14 @@
       const mx = (e.clientX - rect.left) * (batCanvas.width / rect.width);
       const padL = 42, padR = 18;
       const ratio = Math.max(0, Math.min(1, (mx - padL) / (batCanvas.width - padL - padR)));
-      batHoverIdx = Math.round(ratio * (data.length - 1));
+      const minTs = Number(data[0].ts), maxTs = Number(data[data.length - 1].ts);
+      batHoverIdx = findNearestByTs(data, minTs + ratio * (maxTs - minTs));
       const p = data[batHoverIdx];
       const pct = voltToPct(p.batV);
       batTooltip.style.display = "block";
-      batTooltip.style.left = `${Math.min(rect.width - 145, Math.max(8, e.clientX - rect.left + 12))}px`;
+      batTooltip.style.left = `${Math.min(rect.width - 165, Math.max(8, e.clientX - rect.left + 12))}px`;
       batTooltip.style.top = `${Math.max(6, e.clientY - rect.top - 42)}px`;
-      batTooltip.innerHTML = `<div style="color:#9ec0ae;">${p.label}</div><div style="color:#4ade80;">Battery: <strong>${pct}%</strong> (${p.batV.toFixed(2)} V)</div>`;
+      batTooltip.innerHTML = `<div style="color:#9ec0ae;">${formatTooltipTime(p.ts)}</div><div style="color:#4ade80;">Battery: <strong>${pct}%</strong> (${p.batV.toFixed(2)} V)</div>`;
       drawBatteryChart();
     });
     batCanvas.addEventListener("mouseleave", () => {
@@ -1484,13 +1556,14 @@
       const padL = 44, padR = 58;
       const plotW = chartCanvas.width - padL - padR;
       const ratio = Math.max(0, Math.min(1, (mx - padL) / plotW));
-      hoverIdx = Math.round(ratio * (data.length - 1));
+      const minTs = Number(data[0].ts), maxTs = Number(data[data.length - 1].ts);
+      hoverIdx = findNearestByTs(data, minTs + ratio * (maxTs - minTs));
       const pt = data[hoverIdx];
       tooltip.style.display = "block";
-      tooltip.style.left = `${Math.min(rect.width - 155, Math.max(8, e.clientX - rect.left + 12))}px`;
+      tooltip.style.left = `${Math.min(rect.width - 175, Math.max(8, e.clientX - rect.left + 12))}px`;
       tooltip.style.top = `${Math.max(8, e.clientY - rect.top - 55)}px`;
       tooltip.innerHTML =
-        `<div style="color:#9ec0ae; margin-bottom:3px;">${pt.label}</div>` +
+        `<div style="color:#9ec0ae; margin-bottom:3px;">${formatTooltipTime(pt.ts)}</div>` +
         (pt.temp !== null ? `<div style="color:#f97316;">Temp: <strong>${pt.temp} °C</strong></div>` : "") +
         (pt.hum !== null ? `<div style="color:#34d399;">Humidity: <strong>${pt.hum} %</strong></div>` : "") +
         (pt.lux !== null ? `<div style="color:#eab308;">Light: <strong>${pt.lux} lx</strong></div>` : "");
@@ -1723,6 +1796,7 @@
       card.addEventListener("click", () => setPowerMode(card.dataset.power));
     });
     document.getElementById("batteryMahInput").addEventListener("input", updateBatteryEstimate);
+    document.getElementById("batteryMahInput").addEventListener("change", saveAppPrefs);
 
     async function loadConfig() {
       try {
@@ -1742,6 +1816,7 @@
           else if (typeof cfg.lcd_backlight === "boolean") setLcdMode(cfg.lcd_backlight ? "on" : "text_only");
           if (cfg.power_mode) setPowerMode(cfg.power_mode);
           else if (typeof cfg.deep_sleep_enabled === "boolean") setPowerMode(cfg.deep_sleep_enabled ? "deep_sleep" : "awake");
+          if (cfg.appPrefs) applyAppPrefs(cfg.appPrefs);
           configLoaded = true;
         }
       } catch (_) {}
@@ -1773,7 +1848,7 @@
       };
       try {
         const res = await fetch(`${RTDB_BASE}/weather_config/weather-01.json`, {
-          method: "PUT",
+          method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
         });

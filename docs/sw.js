@@ -1,4 +1,4 @@
-const CACHE_NAME = "kh-climatesense-v1.2.1";
+const CACHE_NAME = "kh-climatesense-v1.2.2";
 const ASSETS = ["./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png", "./weather-bg.jpg"];
 
 self.addEventListener("install", e => {

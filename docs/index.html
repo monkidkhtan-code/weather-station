@@ -690,7 +690,7 @@
       <div>
         <div class="brand-title-row">
           <h1>KH ClimateSense</h1>
-          <span class="ver-pill">v1.2.2</span>
+          <span class="ver-pill">v1.2.3</span>
         </div>
         <div class="brand-sub">Farm Microclimate &amp; Weather Station</div>
       </div>
@@ -1245,12 +1245,24 @@
       return filterHistoryByWindow(batSelectedHours, batPanOffset).filter(p => p.batV !== null && p.batV !== undefined);
     }
 
+    function prepareCanvas(canvas) {
+      const rect = canvas.getBoundingClientRect();
+      const w = Math.max(260, Math.round(rect.width));
+      const h = Math.max(120, Math.round(rect.height));
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
+        canvas.width = w * dpr;
+        canvas.height = h * dpr;
+      }
+      const ctx = canvas.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+      return { ctx, w, h };
+    }
+
     function drawCombinedChart() {
       const canvas = document.getElementById("combinedChart");
-      const ctx = canvas.getContext("2d");
-      const w = canvas.width;
-      const h = canvas.height;
-      ctx.clearRect(0, 0, w, h);
+      const { ctx, w, h } = prepareCanvas(canvas);
 
       const data = getFilteredHistory();
       if (data.length < 2) {
@@ -1393,12 +1405,13 @@
       const spanMs = Math.max(1, maxTs - minTs);
       const spanHrs = spanMs / 3600000;
 
-      // Pick clean aligned interval (whole hours when >= 1.5h, else 15m/10m/5m)
+      // Every 1 hour for <= 30h; scale up cleanly only on multi-day views
       let stepMs = 3600000;
       if (spanHrs <= 0.6) stepMs = 5 * 60000;
       else if (spanHrs <= 1.5) stepMs = 15 * 60000;
+      else if (spanHrs <= 30) stepMs = 3600000;
       else {
-        const hourSteps = [1, 2, 3, 4, 6, 12, 24];
+        const hourSteps = [2, 3, 4, 6, 12, 24];
         const chosenHr = hourSteps.find(h => spanHrs / h <= maxTicks) || 24;
         stepMs = chosenHr * 3600000;
       }
@@ -1408,10 +1421,12 @@
       const firstLocal = Math.ceil((minTs - tzOffsetMs) / stepMs) * stepMs + tzOffsetMs;
 
       ctx.save();
-      ctx.font = "10.5px Inter, system-ui, sans-serif";
+      ctx.font = "10px Inter, system-ui, sans-serif";
       ctx.textAlign = "right";
       ctx.textBaseline = "middle";
       const axisY = padT + plotH;
+      let lastDrawnX = -999;
+      const minLabelGap = plotW < 360 ? 22 : 16;
 
       for (let t = firstLocal; t <= maxTs; t += stepMs) {
         const x = padL + ((t - minTs) / spanMs) * plotW;
@@ -1423,22 +1438,22 @@
         ctx.lineTo(x, axisY);
         ctx.stroke();
 
-        ctx.fillStyle = "#9ec0ae";
-        const lbl = formatHourLabel(t);
-        ctx.save();
-        ctx.translate(x, axisY + 8);
-        ctx.rotate(-Math.PI / 4);
-        ctx.fillText(lbl, 0, 0);
-        ctx.restore();
+        if (x - lastDrawnX >= minLabelGap) {
+          lastDrawnX = x;
+          ctx.fillStyle = "#9ec0ae";
+          const lbl = formatHourLabel(t);
+          ctx.save();
+          ctx.translate(x, axisY + 8);
+          ctx.rotate(-Math.PI / 4);
+          ctx.fillText(lbl, 0, 0);
+          ctx.restore();
+        }
       }
       ctx.restore();
     }
     function drawBatteryChart() {
       const canvas = document.getElementById("batteryChart");
-      const ctx = canvas.getContext("2d");
-      const w = canvas.width;
-      const h = canvas.height;
-      ctx.clearRect(0, 0, w, h);
+      const { ctx, w, h } = prepareCanvas(canvas);
 
       const data = getBatteryHistory();
       const padL = 42, padR = 18, padT = 12, padB = 44;
@@ -1526,9 +1541,9 @@
       const data = getBatteryHistory();
       if (data.length < 2) return;
       const rect = batCanvas.getBoundingClientRect();
-      const mx = (e.clientX - rect.left) * (batCanvas.width / rect.width);
+      const mx = e.clientX - rect.left;
       const padL = 42, padR = 18;
-      const ratio = Math.max(0, Math.min(1, (mx - padL) / (batCanvas.width - padL - padR)));
+      const ratio = Math.max(0, Math.min(1, (mx - padL) / (rect.width - padL - padR)));
       const minTs = Number(data[0].ts), maxTs = Number(data[data.length - 1].ts);
       batHoverIdx = findNearestByTs(data, minTs + ratio * (maxTs - minTs));
       const p = data[batHoverIdx];
@@ -1551,10 +1566,9 @@
       const data = getFilteredHistory();
       if (data.length < 2) return;
       const rect = chartCanvas.getBoundingClientRect();
-      const scaleX = chartCanvas.width / rect.width;
-      const mx = (e.clientX - rect.left) * scaleX;
+      const mx = e.clientX - rect.left;
       const padL = 44, padR = 58;
-      const plotW = chartCanvas.width - padL - padR;
+      const plotW = rect.width - padL - padR;
       const ratio = Math.max(0, Math.min(1, (mx - padL) / plotW));
       const minTs = Number(data[0].ts), maxTs = Number(data[data.length - 1].ts);
       hoverIdx = findNearestByTs(data, minTs + ratio * (maxTs - minTs));
@@ -1892,6 +1906,8 @@
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("./sw.js").catch(() => {});
     }
+
+    window.addEventListener("resize", drawCombinedChart);
 
     setGapSec(10);
     const SHEET_EXEC_URL = "https://script.google.com/macros/s/AKfycbzjwD6LuNSgaC4mDKymHxUg6Ieb14AVkFbJnIxixVzbIAhshHhNFBUpVMl_5tyZ5Sgo/exec";
